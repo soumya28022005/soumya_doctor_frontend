@@ -73,6 +73,28 @@ function setupLoginPage() {
         }
     });
 }
+function toggleClinicForm() {
+    const option = document.querySelector('input[name="addClinicOption"]:checked').value;
+    document.getElementById('privateClinicForm').style.display = (option === 'private') ? 'block' : 'none';
+    document.getElementById('existingClinicForm').style.display = (option === 'existing') ? 'block' : 'none';
+}
+
+async function searchClinics() {
+    const searchInput = document.getElementById('clinicSearchInput').value;
+    const resultsContainer = document.getElementById('clinicSearchResults');
+    if (searchInput.length < 2) {
+        resultsContainer.innerHTML = '';
+        return;
+    }
+    const response = await apiRequest(`clinics/search?name=${searchInput}`);
+    if (response.success && response.clinics) {
+        resultsContainer.innerHTML = response.clinics.map(clinic => `
+            <div class="form-group">
+                <label><input type="radio" name="clinicId" value="${clinic.id}"> ${clinic.name} - ${clinic.address}</label>
+            </div>
+        `).join('');
+    }
+}
 window.deleteClinicForDoctor = async (doctorId, clinicId) => {
     if (!confirm('Are you sure you want to remove this clinic from your schedule? This action cannot be undone.')) {
         return;
@@ -274,7 +296,7 @@ async function bookAppointment(doctorId, clinicId, date) {
 }
 
 function buildDoctorDashboard(container, data) {
-    const { doctor, appointments = [], schedules = [], invitations = [] } = data;
+    const { doctor, appointments = [], schedules = [], invitations = [], doctorRequests = [] } = data;
 
     const doneAppointments = appointments.filter(app => app.status === 'Done');
     const availableAppointments = appointments.filter(app => !['Done', 'Absent'].includes(app.status)).sort((a, b) => a.queue_number - b.queue_number);
@@ -344,9 +366,12 @@ function buildDoctorDashboard(container, data) {
                         <strong>All Clinics Today</strong>
                     </li>
                     ${schedules.map(schedule => `
-                        <li class="appointment-item" style="cursor: pointer; ${selectedClinicId == schedule.clinic_id ? 'background-color: #e0e7ff;' : ''}" onclick="location.href='doctor-dashboard.html?clinicId=${schedule.clinic_id}'">
-                            <strong>${schedule.clinic_name}</strong><br>
-                            <small>${schedule.days} from ${schedule.start_time} to ${schedule.end_time}</small>
+                        <li class="appointment-item" style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="cursor: pointer;" onclick="location.href='doctor-dashboard.html?clinicId=${schedule.clinic_id}'">
+                                <strong>${schedule.clinic_name}</strong><br>
+                                <small>${schedule.days} from ${schedule.start_time} to ${schedule.end_time}</small>
+                            </div>
+                            <button class="btn btn-danger btn-small" onclick="deleteClinicForDoctor(${doctor.id}, ${schedule.clinic_id})">Delete</button>
                         </li>
                     `).join('')}
                 </ul>
@@ -379,80 +404,169 @@ function buildDoctorDashboard(container, data) {
                         `).join('')}
                     </ul>` : ''}
             </div>
+
+            <div class="card">
+                <h3>Add a New Clinic</h3>
+                <div class="form-group" style="display: flex; gap: 20px;">
+                    <label style="font-weight: normal;"><input type="radio" name="addClinicOption" value="private" checked onchange="toggleClinicForm()"> Create a Private Clinic</label>
+                    <label style="font-weight: normal;"><input type="radio" name="addClinicOption" value="existing" onchange="toggleClinicForm()"> Join an Existing Clinic</label>
+                </div>
+    
+                <form id="privateClinicForm">
+                    <h4>Create New Private Clinic</h4>
+                    <div class="form-group"><label>Clinic Name</label><input type="text" name="name" required></div>
+                    <div class="form-group"><label>Clinic Address</label><input type="text" name="address" required></div>
+                    <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
+                    <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
+                    <div class="form-group">
+                        <label>Select Days</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                            ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">Create Clinic</button>
+                </form>
+    
+                <form id="existingClinicForm" style="display: none;">
+                    <h4>Join Existing Clinic</h4>
+                    <div class="form-group"><label>Search Clinic by Name</label><input type="text" id="clinicSearchInput" placeholder="Enter clinic name..."></div>
+                    <div id="clinicSearchResults"></div>
+                    <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
+                    <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
+                    <div class="form-group">
+                        <label>Select Days</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                            ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">Send Join Request</button>
+                </form>
+    
+                ${doctorRequests.length > 0 ? `
+                    <h4 style="margin-top: 2rem;">Your Clinic Join Requests</h4>
+                    <ul class="appointment-list">
+                        ${doctorRequests.map(req => `
+                            <li class="appointment-item">
+                                <strong>${req.clinic_name}</strong> - <span style="text-transform: capitalize;">${req.status}</span>
+                                ${req.status === 'rejected' ? '<br><small style="color: red;">The clinic has rejected your request.</small>' : ''}
+                            </li>
+                        `).join('')}
+                    </ul>` : ''}
+            </div>
         </div>
     `;
-
-    document.getElementById('next-patient-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const clinicToUpdate = selectedClinicId || schedules[0]?.clinic_id;
-        if (!clinicToUpdate) {
-            alert("Please select a clinic to manage its queue.");
-            return;
-        }
-        const response = await apiRequest('doctor/next-patient', 'POST', { doctorId: doctor.id, clinicId: clinicToUpdate });
-        if (response.success) {
-            const currentUrl = new URL(window.location);
-            loadDashboard('doctor', currentUrl.searchParams.get('clinicId'));
-        } else {
-            alert(`Error: ${response.message}`);
-        }
-    });
-
-    document.querySelectorAll('.status-select').forEach(select => {
-        select.addEventListener('change', async (event) => {
-            const appointmentId = event.target.dataset.appointmentId;
-            const newStatus = event.target.value;
-            await apiRequest('doctor/update-appointment-status', 'POST', { appointmentId, status: newStatus });
-            const currentUrl = new URL(window.location);
-            loadDashboard('doctor', currentUrl.searchParams.get('clinicId'));
-        });
-    });
-
-    document.querySelectorAll('.invitation-btn').forEach(button => {
-        button.addEventListener('click', async (event) => {
-            const invitationId = event.target.dataset.invitationId;
-            const action = event.target.dataset.action;
-            await apiRequest('doctor/handle-invitation', 'POST', { invitationId, action });
-            loadDashboard('doctor');
-        });
-    });
-
-    document.getElementById('clear-appointments-btn').addEventListener('click', async () => {
-        if (confirm("Are you sure you want to clear the appointments for the selected clinic(s)? This action cannot be undone.")) {
-            const response = await apiRequest(`doctor/${doctor.id}/appointments/today`, 'DELETE', { clinicId: selectedClinicId });
+    
+        document.getElementById('next-patient-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const clinicToUpdate = selectedClinicId || schedules[0]?.clinic_id;
+            if (!clinicToUpdate) {
+                alert("Please select a clinic to manage its queue.");
+                return;
+            }
+            const response = await apiRequest('doctor/next-patient', 'POST', { doctorId: doctor.id, clinicId: clinicToUpdate });
             if (response.success) {
-                alert('Appointments cleared successfully.');
                 const currentUrl = new URL(window.location);
                 loadDashboard('doctor', currentUrl.searchParams.get('clinicId'));
             } else {
                 alert(`Error: ${response.message}`);
             }
-        }
-    });
-
-    document.getElementById('save-settings-btn').addEventListener('click', async () => {
-        const dailyPatientLimit = document.getElementById('daily-patient-limit').value;
-        const response = await apiRequest('doctor/settings', 'POST', { doctorId: doctor.id, dailyPatientLimit });
-        if (response.success) {
-            alert('Settings saved successfully.');
-        } else {
-            alert(`Error: ${response.message}`);
-        }
-    });
-
-    document.getElementById('reset-queue-btn').addEventListener('click', async () => {
-        if (confirm("Are you sure you want to reset the queue for the selected clinic(s)?")) {
-            const response = await apiRequest(`doctor/${doctor.id}/queue/reset`, 'POST', { clinicId: selectedClinicId });
+        });
+    
+        document.getElementById('privateClinicForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            data.days = formData.getAll('days');
+            data.doctorId = doctor.id;
+            const response = await apiRequest('doctor/create-clinic', 'POST', data);
             if (response.success) {
-                alert('Queue reset successfully.');
+                alert('Private clinic created successfully!');
+                loadDashboard('doctor');
+            } else {
+                alert('Error: ' + response.message);
+            }
+        });
+
+        const debouncedClinicSearch = debounce(searchClinics, 400);
+        document.getElementById('clinicSearchInput').addEventListener('keyup', debouncedClinicSearch);
+
+        document.getElementById('existingClinicForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const selectedClinic = document.querySelector('input[name="clinicId"]:checked');
+            if (!selectedClinic) {
+                alert('Please select a clinic.');
+                return;
+            }
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            data.days = formData.getAll('days');
+            data.doctorId = doctor.id;
+            data.clinicId = selectedClinic.value;
+            const response = await apiRequest('doctor/join-clinic', 'POST', data);
+            if (response.success) {
+                alert('Join request sent!');
+                loadDashboard('doctor');
+            } else {
+                alert('Error: ' + response.message);
+            }
+        });
+
+        document.querySelectorAll('.status-select').forEach(select => {
+            select.addEventListener('change', async (event) => {
+                const appointmentId = event.target.dataset.appointmentId;
+                const newStatus = event.target.value;
+                await apiRequest('doctor/update-appointment-status', 'POST', { appointmentId, status: newStatus });
                 const currentUrl = new URL(window.location);
                 loadDashboard('doctor', currentUrl.searchParams.get('clinicId'));
+            });
+        });
+
+        document.querySelectorAll('.invitation-btn').forEach(button => {
+            button.addEventListener('click', async (event) => {
+                const invitationId = event.target.dataset.invitationId;
+                const action = event.target.dataset.action;
+                await apiRequest('doctor/handle-invitation', 'POST', { invitationId, action });
+                loadDashboard('doctor');
+            });
+        });
+
+        document.getElementById('clear-appointments-btn').addEventListener('click', async () => {
+            if (confirm("Are you sure you want to clear the appointments for the selected clinic(s)? This action cannot be undone.")) {
+                const response = await apiRequest(`doctor/${doctor.id}/appointments/today`, 'DELETE', { clinicId: selectedClinicId });
+                if (response.success) {
+                    alert('Appointments cleared successfully.');
+                    const currentUrl = new URL(window.location);
+                    loadDashboard('doctor', currentUrl.searchParams.get('clinicId'));
+                } else {
+                    alert(`Error: ${response.message}`);
+                }
+            }
+        });
+
+        document.getElementById('save-settings-btn').addEventListener('click', async () => {
+            const dailyPatientLimit = document.getElementById('daily-patient-limit').value;
+            const response = await apiRequest('doctor/settings', 'POST', { doctorId: doctor.id, dailyPatientLimit });
+            if (response.success) {
+                alert('Settings saved successfully.');
             } else {
                 alert(`Error: ${response.message}`);
             }
-        }
-    });
+        });
+
+        document.getElementById('reset-queue-btn').addEventListener('click', async () => {
+            if (confirm("Are you sure you want to reset the queue for the selected clinic(s)?")) {
+                const response = await apiRequest(`doctor/${doctor.id}/queue/reset`, 'POST', { clinicId: selectedClinicId });
+                if (response.success) {
+                    alert('Queue reset successfully.');
+                    const currentUrl = new URL(window.location);
+                    loadDashboard('doctor', currentUrl.searchParams.get('clinicId'));
+                } else {
+                    alert(`Error: ${response.message}`);
+                }
+            }
+        });
 }
+
 
 function buildReceptionistDashboard(container, data) {
     const { receptionist, clinic, doctors, allDoctors, joinRequests, invitations } = data;
