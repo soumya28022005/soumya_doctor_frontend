@@ -73,6 +73,18 @@ function setupLoginPage() {
         }
     });
 }
+window.deleteClinicForDoctor = async (doctorId, clinicId) => {
+    if (!confirm('Are you sure you want to remove this clinic from your schedule? This action cannot be undone.')) {
+        return;
+    }
+    const response = await apiRequest('doctor/delete-clinic', 'POST', { doctorId, clinicId });
+    if (response.success) {
+        alert('Clinic removed successfully.');
+        loadDashboard('doctor');
+    } else {
+        alert('Error: ' + response.message);
+    }
+};
 
 function setupSignupPage() {
     document.getElementById('signup-form').addEventListener('submit', async (event) => {
@@ -149,9 +161,12 @@ function buildPatientDashboard(container, data) {
                 <ul id="appointment-list-container" class="appointment-list">
                     ${data.appointments.length > 0 ? data.appointments.map(app => `
                         <li class="appointment-item">
-                            <div>
-                                <strong>Dr. ${app.doctor_name}</strong> on ${new Date(app.date).toLocaleDateString()}<br>
-                                <small>${app.clinic_name} at ${app.time} (Your No: #${app.queue_number})</small>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>Dr. ${app.doctor_name}</strong> on ${new Date(app.date).toLocaleDateString()}<br>
+                                    <small>${app.clinic_name} at ${app.time} (Your No: #${app.queue_number})</small>
+                                </div>
+                                <button class="btn btn-danger btn-small" onclick="deleteAppointment(${app.id})">Cancel</button>
                             </div>
                             <div class="live-queue-status" data-doctor-id="${app.doctor_id}" data-clinic-id="${app.clinic_id}" data-queue-number="${app.queue_number}" style="margin-top: 1rem; padding: 1rem; border-radius: 8px; background: #f1f5f9;">
                                 <p class="current-status-text" style="font-weight: bold;">Loading queue status...</p>
@@ -175,6 +190,8 @@ function buildPatientDashboard(container, data) {
     updateAllQueueStatuses();
     setInterval(updateAllQueueStatuses, 30000);
 }
+
+
 
 async function updateAllQueueStatuses() {
     document.querySelectorAll('.live-queue-status').forEach(async (element) => {
@@ -631,3 +648,15 @@ function displayError(message) {
         errorElement.style.display = 'block';
     }
 }
+window.deleteAppointment = async (appointmentId) => {
+    if (!confirm('Are you sure you want to cancel this appointment?')) {
+        return;
+    }
+    const response = await apiRequest(`appointments/${appointmentId}`, 'DELETE');
+    if (response.success) {
+        alert('Appointment cancelled successfully.');
+        loadDashboard('patient');
+    } else {
+        alert('Error: ' + response.message);
+    }
+};
