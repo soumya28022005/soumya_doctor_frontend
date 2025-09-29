@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:3000'; // Use this for local testing
+const API_BASE_URL = 'https://soumya-doctor-1.onrender.com'; // Use this for local testing
 // const API_BASE_URL = 'https://your-backend-app-name.onrender.com'; // Change this after deploying
 
 // Initialize the application
@@ -569,12 +569,39 @@ function buildDoctorDashboard(container, data) {
 
 
 function buildReceptionistDashboard(container, data) {
-    const { receptionist, clinic, doctors, allDoctors, joinRequests, invitations, appointments } = data;
+    const { receptionist, clinic, doctors, allDoctors, joinRequests, invitations } = data;
 
-    let joinRequestsHtml = '';
+    container.innerHTML = `
+        <div class="dashboard-header">
+            <h1>Welcome, ${receptionist.name} (Receptionist)</h1>
+            <p>Managing ${clinic.name} - ${clinic.address}</p>
+        </div>
+        <div class="portal-container">
+            <a href="#" id="add-doctor-portal" class="portal-card">
+                <h2>Add Doctor to ${clinic.name}</h2>
+                <p>Add a new or existing doctor to the clinic.</p>
+            </a>
+            <a href="#" id="view-doctors-portal" class="portal-card">
+                <h2>Doctors at ${clinic.name}</h2>
+                <p>View doctors and manage their appointments.</p>
+            </a>
+        </div>
+        <div id="receptionist-dynamic-content"></div>
+    `;
+
+    document.getElementById('add-doctor-portal').addEventListener('click', (e) => {
+        e.preventDefault();
+        showAddDoctorForm(data);
+    });
+
+    document.getElementById('view-doctors-portal').addEventListener('click', (e) => {
+        e.preventDefault();
+        showClinicDoctors(data);
+    });
+
     if (joinRequests && joinRequests.length > 0) {
-        joinRequestsHtml = `
-        <div class="card" style="background: #fffbeb; border-left: 4px solid #f59e0b;">
+        const joinRequestHtml = `
+        <div class="card" style="background: #fffbeb; border-left: 4px solid #f59e0b; margin-top: 2rem;">
             <h3>Doctor Join Requests (${joinRequests.length})</h3>
             <ul class="appointment-list">
                 ${joinRequests.map(req => `
@@ -593,102 +620,52 @@ function buildReceptionistDashboard(container, data) {
                 `).join('')}
             </ul>
         </div>`;
+        document.getElementById('receptionist-dynamic-content').innerHTML = joinRequestHtml;
     }
+}
 
-    container.innerHTML = `
-        <div class="dashboard-header">
-            <h1>Welcome, ${receptionist.name} (Receptionist)</h1>
-            <p>Managing ${clinic.name} - ${clinic.address}</p>
-        </div>
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>Book Appointment</h3>
-                <form id="add-patient-form">
-                    <div class="form-group">
-                        <label for="patientName">Patient Name</label>
-                        <input type="text" id="patientName" name="patientName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="patientAge">Patient Age</label>
-                        <input type="number" id="patientAge" name="patientAge" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="doctorSelect">Select Doctor</label>
-                        <select id="doctorSelect" name="doctorId" required>
-                            ${doctors.map(doc => `<option value="${doc.id}">${doc.name} (${doc.specialty})</option>`).join('')}
-                        </select>
-                    </div>
-                    <button type="submit" class="btn">Add Patient and Book</button>
-                </form>
+function showAddDoctorForm(data) {
+    const { clinic, allDoctors, invitations } = data;
+    const dynamicContent = document.getElementById('receptionist-dynamic-content');
+    dynamicContent.innerHTML = `
+        <div class="card" style="margin-top: 2rem;">
+            <h3>Add Doctor to ${clinic.name}</h3>
+            <div class="form-group" style="display: flex; gap: 20px;">
+                <label style="font-weight: normal;"><input type="radio" name="addDoctorOption" value="new" checked onchange="toggleDoctorForm()"> Add New Doctor</label>
+                <label style="font-weight: normal;"><input type="radio" name="addDoctorOption" value="existing" onchange="toggleDoctorForm()"> Invite Existing Doctor</label>
             </div>
-            <div class="card">
-                <h3>Today's Appointments</h3>
-                <ul class="appointment-list">
-                ${appointments.filter(a => new Date(a.date).toDateString() === new Date().toDateString()).map(app => `
-                    <li class="appointment-item">
-                        <strong>${app.patient_name}</strong> with Dr. ${app.doctor_name}<br>
-                        <small>Queue: #${app.queue_number}, Time: ${app.time}</small>
-                    </li>
-                `).join('') || '<p>No appointments today.</p>'}
-                </ul>
-            </div>
-            ${joinRequestsHtml}
-            <div class="card">
-                <h3>Add Doctor to ${clinic.name}</h3>
-                <div class="form-group" style="display: flex; gap: 20px;">
-                    <label style="font-weight: normal;"><input type="radio" name="addDoctorOption" value="new" checked onchange="toggleDoctorForm()"> Add New Doctor</label>
-                    <label style="font-weight: normal;"><input type="radio" name="addDoctorOption" value="existing" onchange="toggleDoctorForm()"> Invite Existing Doctor</label>
+
+            <form id="newDoctorForm">
+                <div class="form-group"><label>Doctor's Full Name</label><input type="text" name="name" required></div>
+                <div class="form-group"><label>Specialty</label><input type="text" name="specialty" required></div>
+                <div class="form-group"><label>Create Username</label><input type="text" name="username" required></div>
+                <div class="form-group"><label>Create Password</label><input type="password" name="password" required></div>
+                <div class="form-group"><label>Phone Number</label><input type="tel" name="Phonenumber" required pattern="[0-9]{10}"></div>
+                <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
+                <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="select-all-days-new"> Every Day</label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                        ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" class="day-checkbox-new" name="days" value="${day}"> ${day}</label>`).join('')}
+                    </div>
                 </div>
+                <button type="submit" class="btn">Add Doctor</button>
+            </form>
 
-                <form id="newDoctorForm">
-                    <div class="form-group"><label>Doctor's Full Name</label><input type="text" name="name" required></div>
-                    <div class="form-group"><label>Specialty</label><input type="text" name="specialty" required></div>
-                    <div class="form-group"><label>Create Username</label><input type="text" name="username" required></div>
-                    <div class="form-group"><label>Create Password</label><input type="password" name="password" required></div>
-                    <div class="form-group"><label>Phone Number</label><input type="tel" name="Phonenumber" required pattern="[0-9]{10}"></div>
-                    <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
-                    <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
-                    <div class="form-group">
-                        <label><input type="checkbox" id="select-all-days-new"> Every Day</label>
-                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
-                            ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" class="day-checkbox-new" name="days" value="${day}"> ${day}</label>`).join('')}
-                        </div>
+            <form id="existingDoctorForm" style="display: none;">
+                <div class="form-group"><label>Select Doctor</label><select name="doctorId" required>${allDoctors.map(d => `<option value="${d.id}">${d.name} (Phone: ${d.phone})</option>`).join('')}</select></div>
+                <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
+                <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="select-all-days-invite"> Every Day</label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                         ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" class="day-checkbox-invite" name="days" value="${day}"> ${day}</label>`).join('')}
                     </div>
-                    <button type="submit" class="btn">Add Doctor</button>
-                </form>
-
-                <form id="existingDoctorForm" style="display: none;">
-                    <div class="form-group"><label>Select Doctor</label><select name="doctorId" required>${allDoctors.map(d => `<option value="${d.id}">${d.name} (Phone: ${d.phone})</option>`).join('')}</select></div>
-                    <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
-                    <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
-                    <div class="form-group">
-                        <label><input type="checkbox" id="select-all-days-invite"> Every Day</label>
-                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
-                             ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" class="day-checkbox-invite" name="days" value="${day}"> ${day}</label>`).join('')}
-                        </div>
-                    </div>
-                    <button type="submit" class="btn">Send Invite</button>
-                </form>
-            </div>
-
-            <div class="card">
-                <h3>Doctors at ${clinic.name}</h3>
-                <ul class="appointment-list">
-                    ${doctors.map(doc => `
-                        <li class="appointment-item">
-                            <div><strong>${doc.name}</strong> (${doc.specialty})<br><small>Schedule: ${doc.start_time} - ${doc.end_time} on ${doc.days}</small></div>
-                            <button class="btn btn-danger btn-small" onclick="deleteDoctorFromClinic(${doc.id}, ${clinic.id})">Delete</button>
-                        </li>
-                    `).join('')}
-                    ${invitations.map(inv => {
-                        const invitedDoctor = allDoctors.find(d => d.id === inv.doctor_id);
-                        return invitedDoctor ? `<li class="appointment-item"><strong>${invitedDoctor.name}</strong> <span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">Pending</span></li>` : '';
-                    }).join('')}
-                </ul>
-            </div>
+                </div>
+                <button type="submit" class="btn">Send Invite</button>
+            </form>
         </div>
     `;
-
     document.getElementById('select-all-days-new').addEventListener('change', e => document.querySelectorAll('.day-checkbox-new').forEach(cb => cb.checked = e.target.checked));
     document.getElementById('select-all-days-invite').addEventListener('change', e => document.querySelectorAll('.day-checkbox-invite').forEach(cb => cb.checked = e.target.checked));
 
@@ -721,25 +698,106 @@ function buildReceptionistDashboard(container, data) {
             alert('Error: ' + response.message);
         }
     });
+}
 
-    document.getElementById('add-patient-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const patientName = document.getElementById('patientName').value;
-        const patientAge = document.getElementById('patientAge').value;
-        const doctorId = document.getElementById('doctorSelect').value;
-        const response = await apiRequest('receptionist/add-patient-and-book', 'POST', {
-            patientName,
-            patientAge,
-            doctorId,
-            clinicId: clinic.id
+function showClinicDoctors(data) {
+    const { clinic, doctors, invitations, allDoctors } = data;
+    const dynamicContent = document.getElementById('receptionist-dynamic-content');
+    dynamicContent.innerHTML = `
+        <div class="card" style="margin-top: 2rem;">
+            <h3>Doctors at ${clinic.name}</h3>
+            <ul class="appointment-list">
+                ${doctors.map(doc => `
+                    <li class="appointment-item" style="cursor: pointer;" onclick="viewDoctorAppointments(${doc.id}, '${doc.name}', ${clinic.id})">
+                        <div><strong>${doc.name}</strong> (${doc.specialty})<br><small>Schedule: ${doc.start_time} - ${doc.end_time} on ${doc.days}</small></div>
+                    </li>
+                `).join('')}
+                ${invitations.map(inv => {
+                    const invitedDoctor = allDoctors.find(d => d.id === inv.doctor_id);
+                    return invitedDoctor ? `<li class="appointment-item"><strong>${invitedDoctor.name}</strong> <span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">Pending</span></li>` : '';
+                }).join('')}
+            </ul>
+        </div>
+    `;
+}
+
+async function viewDoctorAppointments(doctorId, doctorName, clinicId) {
+    const dynamicContent = document.getElementById('receptionist-dynamic-content');
+    dynamicContent.innerHTML = `<div class="loader-container"><div class="loader"></div></div>`;
+
+    const response = await apiRequest(`dashboard/receptionist/${JSON.parse(localStorage.getItem('user')).id}`);
+    if(response.success){
+        const {appointments} = response;
+        const doctorAppointments = appointments.filter(a => a.doctor_id === doctorId && new Date(a.date).toDateString() === new Date().toDateString());
+
+        dynamicContent.innerHTML = `
+            <div class="card" style="margin-top: 2rem;">
+                 <button class="btn btn-secondary btn-small" onclick="loadDashboard('receptionist')"> &larr; Back to Main</button>
+                <h3 style="margin-top: 1rem;">Appointments for Dr. ${doctorName}</h3>
+                <ul class="appointment-list">
+                    ${doctorAppointments.map(app => `
+                        <li class="appointment-item">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>#${app.queue_number} - ${app.patient_name}</strong><br>
+                                    <small>Time: ${app.time}</small>
+                                </div>
+                                <select class="status-select" data-appointment-id="${app.id}" onchange="updateAppointmentStatus(this.dataset.appointmentId, this.value, ${doctorId}, '${doctorName}', ${clinicId})">
+                                    <option value="Confirmed" ${app.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
+                                    <option value="Waiting" ${app.status === 'Waiting' ? 'selected' : ''}>Waiting</option>
+                                    <option value="Done" ${app.status === 'Done' ? 'selected' : ''}>Done</option>
+                                    <option value="Absent" ${app.status === 'Absent' ? 'selected' : ''}>Absent</option>
+                                </select>
+                            </div>
+                        </li>
+                    `).join('') || '<p>No appointments today for this doctor.</p>'}
+                </ul>
+
+                <h4 style="margin-top: 2rem;">Add New Appointment</h4>
+                <form id="add-appointment-form">
+                    <div class="form-group">
+                        <label for="patientName">Patient Name</label>
+                        <input type="text" id="patientName" name="patientName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="patientAge">Patient Age</label>
+                        <input type="number" id="patientAge" name="patientAge" required>
+                    </div>
+                    <button type="submit" class="btn">Add Appointment</button>
+                </form>
+            </div>
+        `;
+
+        document.getElementById('add-appointment-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const patientName = document.getElementById('patientName').value;
+            const patientAge = document.getElementById('patientAge').value;
+            const response = await apiRequest('receptionist/add-patient-and-book', 'POST', {
+                patientName,
+                patientAge,
+                doctorId,
+                clinicId
+            });
+            if (response.success) {
+                alert('Patient added and appointment booked!');
+                viewDoctorAppointments(doctorId, doctorName, clinicId); // Refresh the view
+            } else {
+                alert('Error: ' + response.message);
+            }
         });
-        if (response.success) {
-            alert('Patient added and appointment booked!');
-            loadDashboard('receptionist');
-        } else {
-            alert('Error: ' + response.message);
-        }
-    });
+    } else {
+        dynamicContent.innerHTML = `<p style="color:red;">Could not load appointments.</p>`;
+    }
+}
+
+async function updateAppointmentStatus(appointmentId, status, doctorId, doctorName, clinicId) {
+    const response = await apiRequest(`appointments/${appointmentId}/status`, 'POST', { status });
+    if (response.success) {
+        alert('Status updated successfully!');
+        viewDoctorAppointments(doctorId, doctorName, clinicId);
+    } else {
+        alert('Error updating status: ' + response.message);
+    }
 }
 
 
