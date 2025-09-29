@@ -15,8 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function handlePageLoad(page) {
     switch (page) {
         case 'login.html':
-        case '':
-        case 'index.html':
+            setupLoginPage();
             break;
         case 'signup.html':
             setupSignupPage();
@@ -33,8 +32,6 @@ function handlePageLoad(page) {
         case 'admin-dashboard.html':
             loadDashboard('admin');
             break;
-        default:
-            setupLoginPage();
     }
 }
 
@@ -46,14 +43,13 @@ function logout() {
 
 function setupLoginPage() {
     const role = new URLSearchParams(window.location.search).get('role');
-    if (!role) {
-        // If no role, maybe redirect to index or show an error
-        window.location.href = 'index.html';
+    if (localStorage.getItem('user') && localStorage.getItem('role') === role) {
+        window.location.href = `${role}-dashboard.html`;
         return;
     }
 
-    if (localStorage.getItem('user') && localStorage.getItem('role') === role) {
-        window.location.href = `${role}-dashboard.html`;
+    if (!role) {
+        window.location.href = 'index.html';
         return;
     }
 
@@ -206,12 +202,7 @@ function buildPatientDashboard(container, data) {
             </div>
         </div>`;
 
-    // Set the date picker to today and disable past dates
-    const today = new Date().toISOString().slice(0, 10);
-    const dateSearchInput = document.getElementById('dateSearch');
-    dateSearchInput.value = today;
-    dateSearchInput.min = today;
-
+    document.getElementById('dateSearch').value = new Date().toISOString().slice(0, 10);
 
     const debouncedSearch = debounce(searchForDoctors, 400);
     document.getElementById('doctorNameSearch').addEventListener('keyup', debouncedSearch);
@@ -288,8 +279,8 @@ async function searchForDoctors() {
                         <small>${schedule.clinic_name}</small>
                         <button class="btn btn-small" onclick="bookAppointment(${doctor.id}, ${schedule.clinic_id}, '${date}')">Book</button>
                     </div>
-                `).join('') || '<small>No schedules found for this day.</small>'}
-            </div>`).join('') || '<p>No doctors found matching your criteria for the selected date.</p>';
+                `).join('') || '<small>No schedules found.</small>'}
+            </div>`).join('') || '<p>No doctors found matching your criteria.</p>';
     } else {
         resultsContainer.innerHTML = `<p style="color: red;">${response.message || 'Error fetching doctors.'}</p>`;
     }
@@ -308,16 +299,12 @@ async function bookAppointment(doctorId, clinicId, date) {
 
 function buildDoctorDashboard(container, data) {
     const { doctor, appointments = [], schedules = [], invitations = [], doctorRequests = [] } = data;
-    
-    // Filter appointments for today only for the main view
-    const today = new Date().toISOString().slice(0,10);
-    const todayAppointments = appointments.filter(app => app.date.slice(0,10) === today);
 
-    const doneAppointments = todayAppointments.filter(app => app.status === 'Done');
-    const availableAppointments = todayAppointments.filter(app => !['Done', 'Absent'].includes(app.status)).sort((a, b) => a.queue_number - b.queue_number);
+    const doneAppointments = appointments.filter(app => app.status === 'Done');
+    const availableAppointments = appointments.filter(app => !['Done', 'Absent'].includes(app.status)).sort((a, b) => a.queue_number - b.queue_number);
     const currentPatient = availableAppointments[0] || null;
     const nextPatient = availableAppointments[1] || null;
-    const progress = todayAppointments.length > 0 ? ((doneAppointments.length / todayAppointments.length) * 100).toFixed(2) : 0;
+    const progress = appointments.length > 0 ? ((doneAppointments.length / appointments.length) * 100).toFixed(2) : 0;
     const selectedClinicId = new URLSearchParams(window.location.search).get('clinicId');
 
     container.innerHTML = `
@@ -327,7 +314,7 @@ function buildDoctorDashboard(container, data) {
         </div>
         <div class="dashboard-grid">
             <div class="card">
-                <h3>Live Queue Management (Today)</h3>
+                <h3>Live Queue Management</h3>
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 12px; text-align: center; margin-bottom: 1rem;">
                     <h2 style="margin: 0; font-size: 1.5rem;">Currently Serving</h2>
                     <div style="font-size: 3rem; font-weight: bold; margin: 0.5rem 0;">#${doneAppointments.length > 0 ? Math.max(...doneAppointments.map(a => a.queue_number)) : 0}</div>
@@ -352,17 +339,17 @@ function buildDoctorDashboard(container, data) {
                     <div style="background: #667eea; height: 100%; width: ${progress}%;"></div>
                 </div>
                 <p style="text-align: center; color: #64748b; font-size: 0.9rem;">
-                    Progress: ${doneAppointments.length} of ${todayAppointments.length} patients completed
+                    Progress: ${doneAppointments.length} of ${appointments.length} patients completed
                 </p>
             </div>
 
             <div class="card">
-                <h3>All Upcoming Appointments</h3>
+                <h3>Today's Appointments</h3>
                 <ul class="appointment-list">
-                     ${appointments.length > 0 ? appointments.map(app => `
+                    ${appointments.length > 0 ? appointments.map(app => `
                         <li class="appointment-item" style="${app.id === currentPatient?.id ? 'background: #dbeafe;' : ''} ${app.status === 'Done' ? 'background: #dcfce7;' : ''}">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div><strong>#${app.queue_number} - ${app.patient_name}</strong><br><small>Date: ${new Date(app.date).toLocaleDateString()}</small></div>
+                                <div><strong>#${app.queue_number} - ${app.patient_name}</strong><br><small>Status: ${app.status}</small></div>
                                 <select class="status-select" data-appointment-id="${app.id}">
                                     <option value="Confirmed" ${app.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
                                     <option value="Waiting" ${app.status === 'Waiting' ? 'selected' : ''}>Waiting</option>
@@ -370,7 +357,7 @@ function buildDoctorDashboard(container, data) {
                                     <option value="Absent" ${app.status === 'Absent' ? 'selected' : ''}>Absent</option>
                                 </select>
                             </div>
-                        </li>`).join('') : '<p>No appointments found.</p>'}
+                        </li>`).join('') : '<p>No appointments today.</p>'}
                 </ul>
             </div>
             
@@ -401,8 +388,8 @@ function buildDoctorDashboard(container, data) {
                 <div id="doctor-controls" style="margin-top: 2rem;">
                     <h4>Controls</h4>
                     <div style="display: flex; gap: 1rem;">
-                        <button id="clear-appointments-btn" class="btn btn-danger">Clear Todays List</button>
-                        <button id="reset-queue-btn" class="btn btn-warning">Reset Todays Queue</button>
+                        <button id="clear-appointments-btn" class="btn btn-danger">Clear List</button>
+                        <button id="reset-queue-btn" class="btn btn-warning">Reset Queue</button>
                     </div>
                 </div>
                 ${invitations.length > 0 ? `
@@ -530,7 +517,7 @@ function buildDoctorDashboard(container, data) {
             select.addEventListener('change', async (event) => {
                 const appointmentId = event.target.dataset.appointmentId;
                 const newStatus = event.target.value;
-                await apiRequest(`appointments/${appointmentId}/status`, 'POST', { status: newStatus });
+                await apiRequest('doctor/update-appointment-status', 'POST', { appointmentId, status: newStatus });
                 const currentUrl = new URL(window.location);
                 loadDashboard('doctor', currentUrl.searchParams.get('clinicId'));
             });
@@ -546,7 +533,7 @@ function buildDoctorDashboard(container, data) {
         });
 
         document.getElementById('clear-appointments-btn').addEventListener('click', async () => {
-            if (confirm("Are you sure you want to clear TODAY's appointments for the selected clinic(s)? This action cannot be undone.")) {
+            if (confirm("Are you sure you want to clear the appointments for the selected clinic(s)? This action cannot be undone.")) {
                 const response = await apiRequest(`doctor/${doctor.id}/appointments/today`, 'DELETE', { clinicId: selectedClinicId });
                 if (response.success) {
                     alert('Appointments cleared successfully.');
@@ -569,7 +556,7 @@ function buildDoctorDashboard(container, data) {
         });
 
         document.getElementById('reset-queue-btn').addEventListener('click', async () => {
-            if (confirm("Are you sure you want to reset TODAY's queue for the selected clinic(s)?")) {
+            if (confirm("Are you sure you want to reset the queue for the selected clinic(s)?")) {
                 const response = await apiRequest(`doctor/${doctor.id}/queue/reset`, 'POST', { clinicId: selectedClinicId });
                 if (response.success) {
                     alert('Queue reset successfully.');
