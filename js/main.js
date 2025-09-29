@@ -1,6 +1,5 @@
 // Configuration
-const API_BASE_URL = 'https://soumya-doctor-1.onrender.com'; // Use this for local testing
-// const API_BASE_URL = 'https://your-backend-app-name.onrender.com'; // Change this after deploying
+const API_BASE_URL = 'https://soumya-doctor-1.onrender.com'; // এখানে আপনার Render URL বসানো আছে
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
@@ -188,7 +187,10 @@ function buildPatientDashboard(container, data) {
                                     <strong>Dr. ${app.doctor_name}</strong> on ${new Date(app.date).toLocaleDateString()}<br>
                                     <small>${app.clinic_name} at ${app.time} (Your No: #${app.queue_number})</small>
                                 </div>
-                                <button class="btn btn-danger btn-small" onclick="deleteAppointment(${app.id})">Cancel</button>
+                                ${app.status === 'Done' ?
+                                    `<button class="btn btn-danger btn-small" onclick="deleteAppointment(${app.id})">Cancel</button>` :
+                                    `<span style="background: #e2e8f0; color: #475569; padding: 5px 10px; border-radius: 5px; font-weight: bold;">${app.status}</span>`
+                                }
                             </div>
                             <div class="live-queue-status" data-doctor-id="${app.doctor_id}" data-clinic-id="${app.clinic_id}" data-queue-number="${app.queue_number}" style="margin-top: 1rem; padding: 1rem; border-radius: 8px; background: #f1f5f9;">
                                 <p class="current-status-text" style="font-weight: bold;">Loading queue status...</p>
