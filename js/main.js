@@ -320,7 +320,7 @@ function buildDoctorDashboard(container, data) {
                 ${currentPatient ? `
                     <div style="background: #f0f9ff; padding: 1rem; border-radius: 8px; border-left: 4px solid #0ea5e9; margin-bottom: 1rem;">
                         <h4 style="color: #0ea5e9; margin: 0 0 0.5rem 0;">Current Patient</h4>
-                        <p style="margin: 0; font-size: 1.1rem; font-weight: 600;">${currentPatient.patient_name} (#${currentPatient.queue_number})</p>
+                        <p style="margin: 0; font-size: 1.1rem; font-weight: 600;">${currentPatient.patient_name} (#${currentPatient.queue_number}) - Age: ${calculateAge(currentPatient.dob)}</p>
                     </div>` : '<p>No patient currently being served.</p>'}
                 ${nextPatient ? `
                     <div style="background: #fefce8; padding: 1rem; border-radius: 8px; border-left: 4px solid #eab308; margin-bottom: 1rem;">
@@ -569,7 +569,7 @@ function buildDoctorDashboard(container, data) {
 
 
 function buildReceptionistDashboard(container, data) {
-    const { receptionist, clinic, doctors, allDoctors, joinRequests, invitations } = data;
+    const { receptionist, clinic, doctors, allDoctors, joinRequests, invitations, appointments } = data;
 
     let joinRequestsHtml = '';
     if (joinRequests && joinRequests.length > 0) {
@@ -601,6 +601,37 @@ function buildReceptionistDashboard(container, data) {
             <p>Managing ${clinic.name} - ${clinic.address}</p>
         </div>
         <div class="dashboard-grid">
+            <div class="card">
+                <h3>Book Appointment</h3>
+                <form id="add-patient-form">
+                    <div class="form-group">
+                        <label for="patientName">Patient Name</label>
+                        <input type="text" id="patientName" name="patientName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="patientAge">Patient Age</label>
+                        <input type="number" id="patientAge" name="patientAge" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="doctorSelect">Select Doctor</label>
+                        <select id="doctorSelect" name="doctorId" required>
+                            ${doctors.map(doc => `<option value="${doc.id}">${doc.name} (${doc.specialty})</option>`).join('')}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn">Add Patient and Book</button>
+                </form>
+            </div>
+            <div class="card">
+                <h3>Today's Appointments</h3>
+                <ul class="appointment-list">
+                ${appointments.filter(a => new Date(a.date).toDateString() === new Date().toDateString()).map(app => `
+                    <li class="appointment-item">
+                        <strong>${app.patient_name}</strong> with Dr. ${app.doctor_name}<br>
+                        <small>Queue: #${app.queue_number}, Time: ${app.time}</small>
+                    </li>
+                `).join('') || '<p>No appointments today.</p>'}
+                </ul>
+            </div>
             ${joinRequestsHtml}
             <div class="card">
                 <h3>Add Doctor to ${clinic.name}</h3>
@@ -690,11 +721,141 @@ function buildReceptionistDashboard(container, data) {
             alert('Error: ' + response.message);
         }
     });
+
+    document.getElementById('add-patient-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const patientName = document.getElementById('patientName').value;
+        const patientAge = document.getElementById('patientAge').value;
+        const doctorId = document.getElementById('doctorSelect').value;
+        const response = await apiRequest('receptionist/add-patient-and-book', 'POST', {
+            patientName,
+            patientAge,
+            doctorId,
+            clinicId: clinic.id
+        });
+        if (response.success) {
+            alert('Patient added and appointment booked!');
+            loadDashboard('receptionist');
+        } else {
+            alert('Error: ' + response.message);
+        }
+    });
 }
 
 
 function buildAdminDashboard(container, data) {
-    container.innerHTML = `<h1>Admin Dashboard</h1><p>Welcome, ${data.admin.name}</p>`;
+    const { admin, clinics, doctors, patients, appointments } = data;
+    container.innerHTML = `
+        <div class="dashboard-header"><h1>Admin Dashboard</h1><p>Welcome, ${data.admin.name}</p></div>
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>Clinics</h3>
+                <div class="form-block">
+                    <h4>Add New Clinic</h4>
+                    <form id="add-clinic-form">
+                        <div class="form-group"><input type="text" name="name" placeholder="Clinic Name" required></div>
+                        <div class="form-group"><input type="text" name="address" placeholder="Address" required></div>
+                        <div class="form-group"><input type="text" name="receptionist_name" placeholder="Receptionist Name" required></div>
+                        <div class="form-group"><input type="text" name="receptionist_username" placeholder="Receptionist Username" required></div>
+                        <div class="form-group"><input type="password" name="receptionist_password" placeholder="Receptionist Password" required></div>
+                        <button type="submit" class="btn">Add Clinic</button>
+                    </form>
+                </div>
+                <table>
+                    <thead><tr><th>Name</th><th>Address</th><th>Receptionist</th><th>Username</th><th>Password</th></tr></thead>
+                    <tbody>
+                        ${clinics.map(c => `<tr><td>${c.name}</td><td>${c.address}</td><td>${c.receptionist_name || 'N/A'}</td><td>${c.receptionist_username || 'N/A'}</td><td>${c.receptionist_password || 'N/A'}</td></tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3>Doctors</h3>
+                <div class="form-block">
+                    <h4>Add New Doctor</h4>
+                    <form id="add-doctor-form">
+                        <div class="form-group"><input type="text" name="name" placeholder="Doctor Name" required></div>
+                        <div class="form-group"><input type="text" name="specialty" placeholder="Specialty" required></div>
+                        <div class="form-group"><input type="text" name="username" placeholder="Username" required></div>
+                        <div class="form-group"><input type="password" name="password" placeholder="Password" required></div>
+                        <div class="form-group"><input type="tel" name="phone" placeholder="Mobile" required></div>
+                        <div class="form-group">
+                            <label>Assign to Clinic</label>
+                            <select name="clinicId" required>
+                                ${clinics.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
+                        <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
+                        <div class="form-group">
+                            <label>Select Days</label>
+                            <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                                ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
+                            </div>
+                        </div>
+                        <button type="submit" class="btn">Add Doctor</button>
+                    </form>
+                </div>
+                <table>
+                    <thead><tr><th>Name</th><th>Specialty</th><th>Username</th><th>Password</th><th>Mobile</th></tr></thead>
+                    <tbody>
+                        ${doctors.map(d => `<tr><td>${d.name}</td><td>${d.specialty}</td><td>${d.username}</td><td>${d.password}</td><td>${d.phone}</td></tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3>Patients</h3>
+                <div class="form-block">
+                    <h4>Add New Patient</h4>
+                    <form id="add-patient-form-admin">
+                        <div class="form-group"><input type="text" name="name" placeholder="Patient Name" required></div>
+                        <div class="form-group"><input type="date" name="dob" placeholder="Date of Birth" required></div>
+                        <div class="form-group"><input type="text" name="username" placeholder="Username" required></div>
+                        <div class="form-group"><input type="password" name="password" placeholder="Password" required></div>
+                        <div class="form-group"><input type="tel" name="mobile" placeholder="Mobile" required></div>
+                        <button type="submit" class="btn">Add Patient</button>
+                    </form>
+                </div>
+                <table>
+                    <thead><tr><th>Name</th><th>Username</th><th>Password</th><th>Mobile</th></tr></thead>
+                    <tbody>
+                        ${patients.map(p => `<tr><td>${p.name}</td><td>${p.username}</td><td>${p.password}</td><td>${p.mobile}</td></tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3>All Appointments</h3>
+                <table>
+                    <thead><tr><th>Patient</th><th>Doctor</th><th>Clinic</th><th>Date</th><th>Status</th></tr></thead>
+                    <tbody>
+                        ${appointments.map(a => `<tr><td>${a.patient_name}</td><td>${a.doctor_name}</td><td>${a.clinic_name}</td><td>${new Date(a.date).toLocaleDateString()}</td><td>${a.status}</td></tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('add-clinic-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        const response = await apiRequest('admin/clinics', 'POST', data);
+        if(response.success) loadDashboard('admin'); else alert(response.message);
+    });
+    document.getElementById('add-doctor-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        data.days = formData.getAll('days');
+        const response = await apiRequest('admin/doctors', 'POST', data);
+        if(response.success) loadDashboard('admin'); else alert(response.message);
+    });
+    document.getElementById('add-patient-form-admin').addEventListener('submit', async e => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        const response = await apiRequest('admin/patients', 'POST', data);
+        if(response.success) loadDashboard('admin'); else alert(response.message);
+    });
 }
 
 // --- Global Functions for inline JS ---
@@ -734,7 +895,17 @@ function debounce(func, delay) {
         timeout = setTimeout(() => func.apply(context, args), delay);
     };
 }
-
+function calculateAge(dob) {
+    if (!dob) return 'N/A';
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+}
 async function apiRequest(endpoint, method = 'GET', body = null) {
     try {
         const options = {
