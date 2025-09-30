@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     handlePageLoad(pageName);
 });
 
-
 // Navigate to the correct page setup
 function handlePageLoad(page) {
     switch (page) {
@@ -304,6 +303,30 @@ function buildDoctorDashboard(container, data) {
     const progress = appointments.length > 0 ? ((doneAppointments.length / appointments.length) * 100).toFixed(2) : 0;
     const selectedClinicId = new URLSearchParams(window.location.search).get('clinicId');
 
+    const scheduleHtml = `
+        <div class="form-group">
+            <label>Schedule Type</label>
+            <div style="display: flex; gap: 20px;">
+                <label><input type="radio" name="scheduleType" value="weekly" checked onchange="toggleScheduleType(this)"> Weekly</label>
+                <label><input type="radio" name="scheduleType" value="monthly" onchange="toggleScheduleType(this)"> Monthly Dates</label>
+            </div>
+        </div>
+        <div class="schedule-weekly">
+            <div class="form-group">
+                <label>Select Days of the Week</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                    ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
+                </div>
+            </div>
+        </div>
+        <div class="schedule-monthly" style="display: none;">
+            <div class="form-group">
+                <label>Enter Dates of the Month (e.g., 1, 15, 30)</label>
+                <input type="text" name="monthlyDates" placeholder="1,15,30">
+            </div>
+        </div>
+    `;
+
     container.innerHTML = `
         <div class="dashboard-header">
             <h1>Welcome, Dr. ${doctor.name}</h1>
@@ -368,7 +391,7 @@ function buildDoctorDashboard(container, data) {
                         <li class="appointment-item" style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="cursor: pointer;" onclick="location.href='doctor-dashboard.html?clinicId=${schedule.clinic_id}'">
                                 <strong>${schedule.clinic_name}</strong><br>
-                                <small>${schedule.days} from ${schedule.start_time} to ${schedule.end_time}</small>
+                                <small>${schedule.days.startsWith('DATE:') ? 'Monthly on dates: ' + schedule.days.substring(5) : schedule.days} from ${schedule.start_time} to ${schedule.end_time}</small>
                             </div>
                             <button class="btn btn-danger btn-small" onclick="deleteClinicForDoctor(${doctor.id}, ${schedule.clinic_id})">Delete</button>
                         </li>
@@ -417,12 +440,7 @@ function buildDoctorDashboard(container, data) {
                     <div class="form-group"><label>Clinic Address</label><input type="text" name="address" required></div>
                     <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
                     <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
-                    <div class="form-group">
-                        <label>Select Days</label>
-                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
-                            ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
-                        </div>
-                    </div>
+                    ${scheduleHtml}
                     <button type="submit" class="btn">Create Clinic</button>
                 </form>
     
@@ -432,12 +450,7 @@ function buildDoctorDashboard(container, data) {
                     <div id="clinicSearchResults"></div>
                     <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
                     <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
-                    <div class="form-group">
-                        <label>Select Days</label>
-                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
-                            ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
-                        </div>
-                    </div>
+                    ${scheduleHtml}
                     <button type="submit" class="btn">Send Join Request</button>
                 </form>
     
@@ -471,44 +484,48 @@ function buildDoctorDashboard(container, data) {
             }
         });
     
-        document.getElementById('privateClinicForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-            data.days = formData.getAll('days');
-            data.doctorId = doctor.id;
-            const response = await apiRequest('doctor/create-clinic', 'POST', data);
-            if (response.success) {
-                alert('Private clinic created successfully!');
-                loadDashboard('doctor');
-            } else {
-                alert('Error: ' + response.message);
-            }
-        });
+        const setupFormSubmission = (formId) => {
+            document.getElementById(formId).addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const data = Object.fromEntries(formData.entries());
+
+                const scheduleType = formData.get('scheduleType');
+                if (scheduleType === 'weekly') {
+                    const weeklyDays = formData.getAll('days');
+                    if (weeklyDays.length === 0) { alert('Please select at least one day.'); return; }
+                    data.days = weeklyDays.join(',');
+                } else {
+                    const monthlyDates = formData.get('monthlyDates');
+                    if (monthlyDates) {
+                        data.days = `DATE:${monthlyDates.replace(/\s/g, '')}`;
+                    } else {
+                        alert('Please enter monthly dates.'); return;
+                    }
+                }
+
+                if (formId === 'privateClinicForm') {
+                    data.doctorId = doctor.id;
+                    const response = await apiRequest('doctor/create-clinic', 'POST', data);
+                    if (response.success) { alert('Private clinic created successfully!'); loadDashboard('doctor'); } 
+                    else { alert('Error: ' + response.message); }
+                } else if (formId === 'existingClinicForm') {
+                    const selectedClinic = document.querySelector('input[name="clinicId"]:checked');
+                    if (!selectedClinic) { alert('Please select a clinic.'); return; }
+                    data.doctorId = doctor.id;
+                    data.clinicId = selectedClinic.value;
+                    const response = await apiRequest('doctor/join-clinic', 'POST', data);
+                    if (response.success) { alert('Join request sent!'); loadDashboard('doctor'); } 
+                    else { alert('Error: ' + response.message); }
+                }
+            });
+        };
+
+        setupFormSubmission('privateClinicForm');
+        setupFormSubmission('existingClinicForm');
 
         const debouncedClinicSearch = debounce(searchClinics, 400);
         document.getElementById('clinicSearchInput').addEventListener('keyup', debouncedClinicSearch);
-
-        document.getElementById('existingClinicForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const selectedClinic = document.querySelector('input[name="clinicId"]:checked');
-            if (!selectedClinic) {
-                alert('Please select a clinic.');
-                return;
-            }
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-            data.days = formData.getAll('days');
-            data.doctorId = doctor.id;
-            data.clinicId = selectedClinic.value;
-            const response = await apiRequest('doctor/join-clinic', 'POST', data);
-            if (response.success) {
-                alert('Join request sent!');
-                loadDashboard('doctor');
-            } else {
-                alert('Error: ' + response.message);
-            }
-        });
 
         document.querySelectorAll('.status-select').forEach(select => {
             select.addEventListener('change', async (event) => {
@@ -578,7 +595,6 @@ function buildReceptionistDashboard(container, data) {
         <div class="portal-container">
             <div id="portal-clinics" class="portal-card"><h2>Manage Clinic</h2><p>View clinic details and requests.</p></div>
             <div id="portal-doctors" class="portal-card"><h2>Manage Doctors</h2><p>Add, invite, and view doctors.</p></div>
-            <div id="portal-patients" class="portal-card"><h2>Manage Patients</h2><p>View all patients in the system.</p></div>
             <div id="portal-appointments" class="portal-card"><h2>Today's Appointments</h2><p>Manage daily appointments.</p></div>
         </div>
         <div id="receptionist-dynamic-content" style="margin-top: 2rem;"></div>
@@ -586,10 +602,8 @@ function buildReceptionistDashboard(container, data) {
 
     document.getElementById('portal-clinics').addEventListener('click', () => showReceptionistClinics(data));
     document.getElementById('portal-doctors').addEventListener('click', () => showReceptionistDoctors(data));
-    document.getElementById('portal-patients').addEventListener('click', () => showReceptionistPatients(data));
     document.getElementById('portal-appointments').addEventListener('click', () => showReceptionistAppointments(data));
 
-    // Show join requests by default if they exist
     if (data.joinRequests && data.joinRequests.length > 0) {
         showReceptionistClinics(data);
     }
@@ -637,13 +651,37 @@ function showReceptionistDoctors(data) {
     const { clinic, doctors, allDoctors, invitations } = data;
     const dynamicContent = document.getElementById('receptionist-dynamic-content');
 
+    const scheduleHtml = `
+        <div class="form-group">
+            <label>Schedule Type</label>
+            <div style="display: flex; gap: 20px;">
+                <label><input type="radio" name="scheduleType" value="weekly" checked onchange="toggleScheduleType(this)"> Weekly</label>
+                <label><input type="radio" name="scheduleType" value="monthly" onchange="toggleScheduleType(this)"> Monthly Dates</label>
+            </div>
+        </div>
+        <div class="schedule-weekly">
+            <div class="form-group">
+                <label>Select Days of the Week</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                    ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
+                </div>
+            </div>
+        </div>
+        <div class="schedule-monthly" style="display: none;">
+            <div class="form-group">
+                <label>Enter Dates of the Month (e.g., 1, 15, 30)</label>
+                <input type="text" name="monthlyDates" placeholder="1,15,30">
+            </div>
+        </div>
+    `;
+
     dynamicContent.innerHTML = `
         <div class="card">
             <h3>Doctors at ${clinic.name}</h3>
             <ul class="appointment-list">
                 ${doctors.map(doc => `
                     <li class="appointment-item" style="display: flex; justify-content: space-between; align-items: center;">
-                        <div><strong>${doc.name}</strong> (${doc.specialty})<br><small>Schedule: ${doc.start_time} - ${doc.end_time} on ${doc.days}</small></div>
+                        <div><strong>${doc.name}</strong> (${doc.specialty})<br><small>Schedule: ${doc.days.startsWith('DATE:') ? 'Monthly on dates: ' + doc.days.substring(5) : doc.days} from ${doc.start_time} to ${doc.end_time}</small></div>
                         <button class="btn btn-danger btn-small" onclick="deleteDoctorFromClinic(${doc.id}, ${clinic.id})">Remove</button>
                     </li>
                 `).join('')}
@@ -667,82 +705,53 @@ function showReceptionistDoctors(data) {
                 <div class="form-group"><label>Phone Number</label><input type="tel" name="Phonenumber" required pattern="[0-9]{10}"></div>
                 <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
                 <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
-                <div class="form-group">
-                    <label>Select Days</label>
-                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
-                        ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
-                    </div>
-                </div>
+                ${scheduleHtml}
                 <button type="submit" class="btn">Add Doctor</button>
             </form>
             <form id="existingDoctorForm" style="display: none;">
                 <div class="form-group"><label>Select Doctor</label><select name="doctorId" required>${allDoctors.map(d => `<option value="${d.id}">${d.name} (Phone: ${d.phone})</option>`).join('')}</select></div>
                 <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
                 <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
-                <div class="form-group">
-                    <label>Select Days</label>
-                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
-                         ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
-                    </div>
-                </div>
+                ${scheduleHtml}
                 <button type="submit" class="btn">Send Invite</button>
             </form>
         </div>
     `;
 
-    document.getElementById('newDoctorForm').addEventListener('submit', async (e) => {
+    const setupFormSubmission = async (e) => {
         e.preventDefault();
-        const formData = new FormData(e.target);
+        const form = e.target;
+        const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
-        data.days = formData.getAll('days');
+
+        const scheduleType = formData.get('scheduleType');
+        if (scheduleType === 'weekly') {
+            const weeklyDays = formData.getAll('days');
+            if (weeklyDays.length === 0) { alert('Please select at least one day.'); return; }
+            data.days = weeklyDays.join(',');
+        } else {
+            const monthlyDates = formData.get('monthlyDates');
+            if (monthlyDates) { data.days = `DATE:${monthlyDates.replace(/\s/g, '')}`; } 
+            else { alert('Please enter monthly dates.'); return; }
+        }
+        
         data.clinicId = clinic.id;
-        const response = await apiRequest('receptionist/add-doctor', 'POST', data);
+        const endpoint = form.id === 'newDoctorForm' ? 'receptionist/add-doctor' : 'receptionist/invite-doctor';
+        const response = await apiRequest(endpoint, 'POST', data);
+
         if (response.success) {
-            alert('Doctor added!');
+            alert(form.id === 'newDoctorForm' ? 'Doctor added!' : 'Invite sent!');
             loadDashboard('receptionist');
         } else {
             alert('Error: ' + response.message);
         }
-    });
+    };
 
-    document.getElementById('existingDoctorForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData.entries());
-        data.days = formData.getAll('days');
-        data.clinicId = clinic.id;
-        const response = await apiRequest('receptionist/invite-doctor', 'POST', data);
-        if (response.success) {
-            alert('Invite sent!');
-            loadDashboard('receptionist');
-        } else {
-            alert('Error: ' + response.message);
-        }
-    });
+    document.getElementById('newDoctorForm').addEventListener('submit', setupFormSubmission);
+    document.getElementById('existingDoctorForm').addEventListener('submit', setupFormSubmission);
 }
 
-function showReceptionistPatients(data) {
-    const { patients } = data;
-    const dynamicContent = document.getElementById('receptionist-dynamic-content');
-    dynamicContent.innerHTML = `
-        <div class="card">
-            <h3>All Patients (${patients.length})</h3>
-            <div class="table-wrapper">
-                <table>
-                    <thead><tr><th>Name</th><th>Username</th><th>Mobile</th><th>Age</th></tr></thead>
-                    <tbody>
-                        ${patients.map(p => `<tr>
-                            <td>${p.name}</td>
-                            <td>${p.username}</td>
-                            <td>${p.mobile || 'N/A'}</td>
-                            <td>${calculateAge(p.dob)}</td>
-                        </tr>`).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
-}
+
 
 async function showReceptionistAppointments(data) {
     const { clinic, doctors } = data;
@@ -812,7 +821,6 @@ async function showReceptionistAppointments(data) {
 async function updateAppointmentStatusReceptionist(appointmentId, status) {
     const response = await apiRequest(`appointments/${appointmentId}/status`, 'POST', { status });
     if (response.success) {
-        // No alert needed for receptionist, just refresh
         const user = JSON.parse(localStorage.getItem('user'));
         const data = await apiRequest(`dashboard/receptionist/${user.id}`);
         if(data.success) {
@@ -826,6 +834,31 @@ async function updateAppointmentStatusReceptionist(appointmentId, status) {
 
 function buildAdminDashboard(container, data) {
     const { admin, clinics, doctors, patients, appointments } = data;
+
+    const scheduleHtml = `
+        <div class="form-group">
+            <label>Schedule Type</label>
+            <div style="display: flex; gap: 20px;">
+                <label><input type="radio" name="scheduleType" value="weekly" checked onchange="toggleScheduleType(this)"> Weekly</label>
+                <label><input type="radio" name="scheduleType" value="monthly" onchange="toggleScheduleType(this)"> Monthly Dates</label>
+            </div>
+        </div>
+        <div class="schedule-weekly">
+            <div class="form-group">
+                <label>Select Days of the Week</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                    ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
+                </div>
+            </div>
+        </div>
+        <div class="schedule-monthly" style="display: none;">
+            <div class="form-group">
+                <label>Enter Dates of the Month (e.g., 1, 15, 30)</label>
+                <input type="text" name="monthlyDates" placeholder="1,15,30">
+            </div>
+        </div>
+    `;
+
     container.innerHTML = `
         <div class="dashboard-header"><h1>Admin Dashboard</h1><p>Welcome, ${data.admin.name}</p></div>
         <div class="dashboard-grid">
@@ -876,12 +909,7 @@ function buildAdminDashboard(container, data) {
                         </div>
                         <div class="form-group"><label>Start Time</label><input type="time" name="startTime" required></div>
                         <div class="form-group"><label>End Time</label><input type="time" name="endTime" required></div>
-                        <div class="form-group">
-                            <label>Select Days</label>
-                            <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
-                                ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => `<label><input type="checkbox" name="days" value="${day}"> ${day}</label>`).join('')}
-                            </div>
-                        </div>
+                        ${scheduleHtml}
                         <button type="submit" class="btn">Add Doctor</button>
                     </form>
                 </div>
@@ -952,7 +980,18 @@ function buildAdminDashboard(container, data) {
         e.preventDefault();
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
-        data.days = formData.getAll('days');
+        
+        const scheduleType = formData.get('scheduleType');
+        if (scheduleType === 'weekly') {
+            const weeklyDays = formData.getAll('days');
+            if (weeklyDays.length === 0) { alert('Please select at least one day.'); return; }
+            data.days = weeklyDays.join(',');
+        } else {
+            const monthlyDates = formData.get('monthlyDates');
+            if (monthlyDates) { data.days = `DATE:${monthlyDates.replace(/\s/g, '')}`; }
+             else { alert('Please enter monthly dates.'); return; }
+        }
+
         const response = await apiRequest('admin/doctors', 'POST', data);
         if(response.success) loadDashboard('admin'); else alert(response.message);
     });
@@ -970,6 +1009,22 @@ window.toggleDoctorForm = () => {
     const option = document.querySelector('input[name="addDoctorOption"]:checked').value;
     document.getElementById('newDoctorForm').style.display = (option === 'new') ? 'block' : 'none';
     document.getElementById('existingDoctorForm').style.display = (option === 'existing') ? 'block' : 'none';
+};
+
+window.toggleScheduleType = (radio) => {
+    const form = radio.closest('form');
+    const weeklyDiv = form.querySelector('.schedule-weekly');
+    const monthlyDiv = form.querySelector('.schedule-monthly');
+    if (radio.value === 'weekly') {
+        weeklyDiv.style.display = 'block';
+        monthlyDiv.style.display = 'none';
+        const monthlyInput = form.querySelector('input[name="monthlyDates"]');
+        if (monthlyInput) monthlyInput.value = '';
+    } else {
+        weeklyDiv.style.display = 'none';
+        monthlyDiv.style.display = 'block';
+        form.querySelectorAll('input[name="days"]').forEach(cb => cb.checked = false);
+    }
 };
 
 window.handleJoinRequest = async (requestId, action) => {
@@ -1077,3 +1132,4 @@ window.deleteAppointment = async (appointmentId) => {
         alert('Error: ' + response.message);
     }
 };
+
