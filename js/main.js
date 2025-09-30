@@ -258,18 +258,21 @@ async function searchForDoctors() {
 
     if (response.success && response.doctors) {
         resultsContainer.innerHTML = response.doctors.map(doctor => {
-            const slotsInfo = (doctor.daily_patient_limit > 0 && doctor.hasOwnProperty('appointment_count'))
-                ? `(Slots: ${doctor.daily_patient_limit - doctor.appointment_count}/${doctor.daily_patient_limit})`
-                : '';
-
             return `
             <div class="appointment-item">
-                <strong>Dr. ${doctor.name}</strong> - ${doctor.specialty} <small style="color: #059669; font-weight: bold;">${slotsInfo}</small><br>
+                <strong>Dr. ${doctor.name}</strong> - ${doctor.specialty}<br>
                 ${doctor.schedules.map(schedule => {
-                    const isFull = doctor.daily_patient_limit > 0 && doctor.hasOwnProperty('appointment_count') && doctor.appointment_count >= doctor.daily_patient_limit;
+                    const slotsInfo = schedule.patient_limit > 0
+                        ? `(Slots: ${schedule.patient_limit - schedule.appointment_count}/${schedule.patient_limit})`
+                        : '';
+                    const isFull = schedule.patient_limit > 0 && schedule.appointment_count >= schedule.patient_limit;
+                    
                     return `
                     <div style="padding-left: 1rem; margin-top: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
-                        <small>${schedule.clinic_name}</small>
+                        <div>
+                            <small>${schedule.clinic_name}</small><br>
+                            <small style="font-weight: bold; color: #334155;">${schedule.start_time} - ${schedule.end_time} ${slotsInfo}</small>
+                        </div>
                         <button class="btn btn-small" onclick="bookAppointment(${doctor.id}, ${schedule.clinic_id}, '${date}')" ${isFull ? 'disabled' : ''}>
                             ${isFull ? 'Full' : 'Book'}
                         </button>
@@ -304,6 +307,10 @@ function buildDoctorDashboard(container, data) {
     const selectedClinicId = new URLSearchParams(window.location.search).get('clinicId');
 
     const scheduleHtml = `
+        <div class="form-group">
+            <label>Patient Limit for this Slot</label>
+            <input type="number" name="patientLimit" placeholder="e.g., 20" value="0">
+        </div>
         <div class="form-group">
             <label>Schedule Type</label>
             <div style="display: flex; gap: 20px;">
@@ -382,7 +389,7 @@ function buildDoctorDashboard(container, data) {
             </div>
             
              <div class="card">
-                <h3>Your Clinics & Settings</h3>
+                <h3>Your Clinic Schedules</h3>
                 <ul class="appointment-list">
                     <li class="appointment-item" style="cursor: pointer; ${!selectedClinicId ? 'background-color: #e0e7ff;' : ''}" onclick="location.href='doctor-dashboard.html'">
                         <strong>All Clinics Today</strong>
@@ -391,20 +398,13 @@ function buildDoctorDashboard(container, data) {
                         <li class="appointment-item" style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="cursor: pointer;" onclick="location.href='doctor-dashboard.html?clinicId=${schedule.clinic_id}'">
                                 <strong>${schedule.clinic_name}</strong><br>
-                                <small>${schedule.days.startsWith('DATE:') ? 'Monthly on dates: ' + schedule.days.substring(5) : schedule.days} from ${schedule.start_time} to ${schedule.end_time}</small>
+                                <small>${schedule.days.startsWith('DATE:') ? 'Monthly on dates: ' + schedule.days.substring(5) : schedule.days}</small><br>
+                                <small>${schedule.start_time} to ${schedule.end_time} (Limit: ${schedule.patient_limit || 'None'})</small>
                             </div>
-                            <button class="btn btn-danger btn-small" onclick="deleteClinicForDoctor(${doctor.id}, ${schedule.clinic_id})">Delete</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteSchedule(${schedule.id})">Delete Slot</button>
                         </li>
                     `).join('')}
                 </ul>
-                <div id="doctor-settings" style="margin-top: 2rem;">
-                    <h4>Settings</h4>
-                    <div class="form-group">
-                        <label for="daily-patient-limit">Daily Patient Limit</label>
-                        <input type="number" id="daily-patient-limit" value="${doctor.daily_patient_limit || ''}" placeholder="e.g., 20">
-                    </div>
-                    <button id="save-settings-btn" class="btn">Save Settings</button>
-                </div>
                 <div id="doctor-controls" style="margin-top: 2rem;">
                     <h4>Controls</h4>
                     <div style="display: flex; gap: 1rem;">
@@ -428,7 +428,7 @@ function buildDoctorDashboard(container, data) {
             </div>
 
             <div class="card">
-                <h3>Add a New Clinic</h3>
+                <h3>Add a New Clinic Schedule</h3>
                 <div class="form-group" style="display: flex; gap: 20px;">
                     <label style="font-weight: normal;"><input type="radio" name="addClinicOption" value="private" checked onchange="toggleClinicForm()"> Create a Private Clinic</label>
                     <label style="font-weight: normal;"><input type="radio" name="addClinicOption" value="existing" onchange="toggleClinicForm()"> Join an Existing Clinic</label>
@@ -541,8 +541,13 @@ function buildDoctorDashboard(container, data) {
             button.addEventListener('click', async (event) => {
                 const invitationId = event.target.dataset.invitationId;
                 const action = event.target.dataset.action;
-                await apiRequest('doctor/handle-invitation', 'POST', { invitationId, action });
-                loadDashboard('doctor');
+                const response = await apiRequest('doctor/handle-invitation', 'POST', { invitationId, action });
+                if(response.success){
+                    alert(response.message);
+                    loadDashboard('doctor');
+                } else {
+                    alert('Error: ' + response.message);
+                }
             });
         });
 
@@ -556,16 +561,6 @@ function buildDoctorDashboard(container, data) {
                 } else {
                     alert(`Error: ${response.message}`);
                 }
-            }
-        });
-
-        document.getElementById('save-settings-btn').addEventListener('click', async () => {
-            const dailyPatientLimit = document.getElementById('daily-patient-limit').value;
-            const response = await apiRequest('doctor/settings', 'POST', { doctorId: doctor.id, dailyPatientLimit });
-            if (response.success) {
-                alert('Settings saved successfully.');
-            } else {
-                alert(`Error: ${response.message}`);
             }
         });
 
@@ -595,6 +590,7 @@ function buildReceptionistDashboard(container, data) {
         <div class="portal-container">
             <div id="portal-clinics" class="portal-card"><h2>Manage Clinic</h2><p>View clinic details and requests.</p></div>
             <div id="portal-doctors" class="portal-card"><h2>Manage Doctors</h2><p>Add, invite, and view doctors.</p></div>
+            <div id="portal-patients" class="portal-card"><h2>Manage Patients</h2><p>View all patients in the system.</p></div>
             <div id="portal-appointments" class="portal-card"><h2>Today's Appointments</h2><p>Manage daily appointments.</p></div>
         </div>
         <div id="receptionist-dynamic-content" style="margin-top: 2rem;"></div>
@@ -602,6 +598,7 @@ function buildReceptionistDashboard(container, data) {
 
     document.getElementById('portal-clinics').addEventListener('click', () => showReceptionistClinics(data));
     document.getElementById('portal-doctors').addEventListener('click', () => showReceptionistDoctors(data));
+    document.getElementById('portal-patients').addEventListener('click', () => showReceptionistPatients(data));
     document.getElementById('portal-appointments').addEventListener('click', () => showReceptionistAppointments(data));
 
     if (data.joinRequests && data.joinRequests.length > 0) {
@@ -624,7 +621,7 @@ function showReceptionistClinics(data) {
                             <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
                                 <div>
                                     <strong>Dr. ${req.doctor_name}</strong> (${req.doctor_specialty}) wants to join.<br>
-                                    <small>Proposed: ${req.start_time} - ${req.end_time} on ${req.days}</small>
+                                    <small>Proposed: ${req.days.startsWith('DATE:') ? 'Monthly on dates: ' + req.days.substring(5) : req.days} from ${req.start_time} to ${req.end_time}</small>
                                 </div>
                                 <div style="display: flex; gap: 0.5rem;">
                                     <button class="btn btn-success btn-small" onclick="handleJoinRequest(${req.id}, 'accept')">Accept</button>
@@ -652,6 +649,10 @@ function showReceptionistDoctors(data) {
     const dynamicContent = document.getElementById('receptionist-dynamic-content');
 
     const scheduleHtml = `
+        <div class="form-group">
+            <label>Patient Limit for this Slot</label>
+            <input type="number" name="patientLimit" placeholder="e.g., 20" value="0">
+        </div>
         <div class="form-group">
             <label>Schedule Type</label>
             <div style="display: flex; gap: 20px;">
@@ -681,8 +682,8 @@ function showReceptionistDoctors(data) {
             <ul class="appointment-list">
                 ${doctors.map(doc => `
                     <li class="appointment-item" style="display: flex; justify-content: space-between; align-items: center;">
-                        <div><strong>${doc.name}</strong> (${doc.specialty})<br><small>Schedule: ${doc.days.startsWith('DATE:') ? 'Monthly on dates: ' + doc.days.substring(5) : doc.days} from ${doc.start_time} to ${doc.end_time}</small></div>
-                        <button class="btn btn-danger btn-small" onclick="deleteDoctorFromClinic(${doc.id}, ${clinic.id})">Remove</button>
+                        <div><strong>${doc.name}</strong> (${doc.specialty})<br><small>Schedule: ${doc.days.startsWith('DATE:') ? 'Monthly on dates: ' + doc.days.substring(5) : doc.days} from ${doc.start_time} to ${doc.end_time} (Limit: ${doc.patient_limit || 'None'})</small></div>
+                        <button class="btn btn-danger btn-small" onclick="deleteSchedule(${doc.id})">Remove Slot</button>
                     </li>
                 `).join('')}
                 ${invitations.map(inv => {
@@ -751,7 +752,28 @@ function showReceptionistDoctors(data) {
     document.getElementById('existingDoctorForm').addEventListener('submit', setupFormSubmission);
 }
 
-
+function showReceptionistPatients(data) {
+    const { patients } = data;
+    const dynamicContent = document.getElementById('receptionist-dynamic-content');
+    dynamicContent.innerHTML = `
+        <div class="card">
+            <h3>All Patients (${patients.length})</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead><tr><th>Name</th><th>Username</th><th>Mobile</th><th>Age</th></tr></thead>
+                    <tbody>
+                        ${patients.map(p => `<tr>
+                            <td>${p.name}</td>
+                            <td>${p.username}</td>
+                            <td>${p.mobile || 'N/A'}</td>
+                            <td>${calculateAge(p.dob)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
 
 async function showReceptionistAppointments(data) {
     const { clinic, doctors } = data;
@@ -836,6 +858,10 @@ function buildAdminDashboard(container, data) {
     const { admin, clinics, doctors, patients, appointments } = data;
 
     const scheduleHtml = `
+        <div class="form-group">
+            <label>Patient Limit for this Slot</label>
+            <input type="number" name="patientLimit" placeholder="e.g., 20" value="0">
+        </div>
         <div class="form-group">
             <label>Schedule Type</label>
             <div style="display: flex; gap: 20px;">
@@ -1031,17 +1057,21 @@ window.handleJoinRequest = async (requestId, action) => {
     if (action === 'delete' && !confirm('Are you sure?')) return;
     const response = await apiRequest('receptionist/handle-join-request', 'POST', { requestId, action });
     if (response.success) {
+        alert(response.message);
         loadDashboard('receptionist');
     } else {
         alert('Error: ' + response.message);
     }
 };
 
-window.deleteDoctorFromClinic = async (doctorId, clinicId) => {
-    if (!confirm('Are you sure you want to remove this doctor from the clinic?')) return;
-    const response = await apiRequest('receptionist/delete-doctor', 'POST', { doctorId, clinicId });
+window.deleteSchedule = async (scheduleId) => {
+    if (!confirm('Are you sure you want to remove this specific time slot?')) return;
+    const response = await apiRequest(`schedules/${scheduleId}`, 'DELETE');
     if (response.success) {
-        loadDashboard('receptionist');
+        alert('Schedule slot removed successfully.');
+        // Reload current dashboard
+        const role = localStorage.getItem('role');
+        if(role) loadDashboard(role);
     } else {
         alert('Error: ' + response.message);
     }
@@ -1055,19 +1085,6 @@ window.deleteAdminItem = async (type, id, name) => {
     if (response.success) {
         alert(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`);
         loadDashboard('admin');
-    } else {
-        alert('Error: ' + response.message);
-    }
-};
-
-window.deleteClinicForDoctor = async (doctorId, clinicId) => {
-    if (!confirm('Are you sure you want to remove this clinic from your schedule? This action cannot be undone.')) {
-        return;
-    }
-    const response = await apiRequest('doctor/delete-clinic', 'POST', { doctorId, clinicId });
-    if (response.success) {
-        alert('Clinic removed successfully.');
-        loadDashboard('doctor');
     } else {
         alert('Error: ' + response.message);
     }
