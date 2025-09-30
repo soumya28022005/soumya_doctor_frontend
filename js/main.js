@@ -590,7 +590,6 @@ function buildReceptionistDashboard(container, data) {
         <div class="portal-container">
             <div id="portal-clinics" class="portal-card"><h2>Manage Clinic</h2><p>View clinic details and requests.</p></div>
             <div id="portal-doctors" class="portal-card"><h2>Manage Doctors</h2><p>Add, invite, and view doctors.</p></div>
-            <div id="portal-patients" class="portal-card"><h2>Manage Patients</h2><p>View all patients in the system.</p></div>
             <div id="portal-appointments" class="portal-card"><h2>Today's Appointments</h2><p>Manage daily appointments.</p></div>
         </div>
         <div id="receptionist-dynamic-content" style="margin-top: 2rem;"></div>
@@ -752,28 +751,7 @@ function showReceptionistDoctors(data) {
     document.getElementById('existingDoctorForm').addEventListener('submit', setupFormSubmission);
 }
 
-function showReceptionistPatients(data) {
-    const { patients } = data;
-    const dynamicContent = document.getElementById('receptionist-dynamic-content');
-    dynamicContent.innerHTML = `
-        <div class="card">
-            <h3>All Patients (${patients.length})</h3>
-            <div class="table-wrapper">
-                <table>
-                    <thead><tr><th>Name</th><th>Username</th><th>Mobile</th><th>Age</th></tr></thead>
-                    <tbody>
-                        ${patients.map(p => `<tr>
-                            <td>${p.name}</td>
-                            <td>${p.username}</td>
-                            <td>${p.mobile || 'N/A'}</td>
-                            <td>${calculateAge(p.dob)}</td>
-                        </tr>`).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
-}
+
 
 async function showReceptionistAppointments(data) {
     const { clinic, doctors } = data;
