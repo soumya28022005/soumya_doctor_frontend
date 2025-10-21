@@ -579,6 +579,7 @@ function buildDoctorDashboard(container, data) {
 }
 
 // --- Receptionist Dashboard V2 ---
+// --- Receptionist Dashboard V2 ---
 function buildReceptionistDashboard(container, data) {
     const { receptionist, clinic } = data;
 
@@ -595,16 +596,21 @@ function buildReceptionistDashboard(container, data) {
         <div id="receptionist-dynamic-content" style="margin-top: 2rem;"></div>
     `;
 
+    // Event listener-gulo attach kora
     document.getElementById('portal-clinics').addEventListener('click', () => showReceptionistClinics(data));
     document.getElementById('portal-doctors').addEventListener('click', () => showReceptionistDoctors(data));
-    document.getElementById('portal-patients').addEventListener('click', () => showReceptionistPatients(data));
+    // document.getElementById('portal-patients')... line-ta delete kora hoyeche karon ota bhul chilo
     document.getElementById('portal-appointments').addEventListener('click', () => showReceptionistAppointments(data));
 
+    // Ebar dashboard load hole default view set kora
     if (data.joinRequests && data.joinRequests.length > 0) {
+        // Jodi join request thake, tahole clinic section-ta age dekhao
         showReceptionistClinics(data);
+    } else {
+        // Nahole, default hisebe appointment list-tai dekhiye dao
+        showReceptionistAppointments(data);
     }
 }
-
 function showReceptionistClinics(data) {
     const { clinic, joinRequests } = data;
     const dynamicContent = document.getElementById('receptionist-dynamic-content');
