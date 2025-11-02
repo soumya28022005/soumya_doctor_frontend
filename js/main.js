@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'https://soumya-doctor-3.onrender.com'; 
+const API_BASE_URL = 'http://localhost:3000'; 
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
@@ -37,7 +37,7 @@ function handlePageLoad(page) {
 
 // --- Authentication ---
 function logout() {
-    localStorage.clear();
+    localStorage.clear(); // Eti token-shoho shob kichu clear kore debe
     window.location.href = 'index.html';
 }
 
@@ -86,10 +86,11 @@ function setupLoginPage() {
         try {
             const { username, password } = event.target.elements;
             const response = await apiRequest(`login/${role}`, 'POST', { username: username.value, password: password.value });
-
+                
             if (response.success) {
                 localStorage.setItem('user', JSON.stringify(response.user));
                 localStorage.setItem('role', role);
+                localStorage.setItem('token', response.token); // <-- Notun token save korun
                 window.location.href = `${role}-dashboard.html`;
             } else {
                 displayError(response.message);
@@ -172,6 +173,7 @@ function setupSignupPage() {
 }
 
 // --- Dashboard ---
+// [SUDHU EI FUNCTION-TI REPLACE KORUN]
 async function loadDashboard(role) {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user || localStorage.getItem('role') !== role) {
@@ -200,9 +202,13 @@ async function loadDashboard(role) {
         buildDashboard(dashboardContainer, data);
     } else {
         dashboardContainer.innerHTML = `<h1>Error: ${data.message}</h1>`;
-        if (data.message && data.message.includes('not found')) {
+        
+        // --- EI CONDITION-TI CHANGE KORA HOYECHE ---
+        // Jodi token-er kono problem hoy ba user na pay, tahole auto-logout korun
+        if (data.message && (data.message.includes('not found') || data.message.includes('token') || data.message.includes('denied') || data.message.includes('authorized'))) {
             logout();
         }
+        // ------------------------------------------
     }
 }
 
@@ -1168,12 +1174,24 @@ function calculateAge(dob) {
     }
     return age;
 }
+// [EI FUNCTION-TI MAIN.JS-E REPLACE KORUN]
+
 async function apiRequest(endpoint, method = 'GET', body = null) {
     try {
         const options = {
             method,
             headers: { 'Content-Type': 'application/json' }
         };
+
+        // --- EI ONGSOTI NOTUN ADD KORA HOYECHE ---
+        // localStorage theke token-ti nin
+        const token = localStorage.getItem('token');
+        if (token) {
+            // Header-e token-ti add korun
+            options.headers['Authorization'] = `Bearer ${token}`;
+        }
+        // ------------------------------------------
+
         if (body) {
             options.body = JSON.stringify(body);
         }
@@ -1238,6 +1256,7 @@ async function onGoogleSignIn(googleResponse) {
         if (response.success) {
             localStorage.setItem('user', JSON.stringify(response.user));
             localStorage.setItem('role', 'patient'); // Google login শুধু patient-দের জন্য
+            localStorage.setItem('token', response.token);
             window.location.href = `patient-dashboard.html`;
         } else {
             displayError(response.message || 'Google Sign-In Failed');
