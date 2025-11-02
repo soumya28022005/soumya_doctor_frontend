@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:3000'; 
+const API_BASE_URL = 'https://soumya-doctor-3.onrender.com'; 
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
