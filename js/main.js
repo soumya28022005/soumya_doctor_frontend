@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'https://soumya-doctor-3.onrender.com'; // Using localhost for development
+const API_BASE_URL = 'https://soumya-doctor-3.onrender.com'; 
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
@@ -96,22 +96,43 @@ async function searchClinics() {
 }
 
 function setupSignupPage() {
-    document.getElementById('signup-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const { name, dob, mobile, username, password } = event.target.elements;
-        const response = await apiRequest('signup/patient', 'POST', {
-            name: name.value,
-            dob: dob.value,
-            mobile: mobile.value,
-            username: username.value,
-            password: password.value
-        });
+    const signupForm = document.getElementById('signup-form');
+    // ফর্মের ভেতরের সাবমিট বাটনটি ধরুন
+    const submitButton = signupForm.querySelector('button[type="submit"]');
 
-        if (response.success) {
-            alert('Signup successful! Please login.');
-            window.location.href = 'login.html?role=patient';
-        } else {
-            displayError(response.message);
+    signupForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        
+        // লোডিং শুরু
+        const originalText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Signing up... ⏳';
+
+        try {
+            const { name, dob, mobile, username, password } = event.target.elements;
+            const response = await apiRequest('signup/patient', 'POST', {
+                name: name.value,
+                dob: dob.value,
+                mobile: mobile.value,
+                username: username.value,
+                password: password.value
+            });
+
+            if (response.success) {
+                alert('Signup successful! Please login.');
+                window.location.href = 'login.html?role=patient';
+                // সফল হলে পেজ চেঞ্জ হবে, তাই বাটন রিসেট দরকার নেই
+            } else {
+                displayError(response.message);
+                // ফেল করলে বাটন রিসেট
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        } catch (error) {
+            // এরর হলেও বাটন রিসেট
+            displayError('An unexpected error occurred. Please try again.');
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
         }
     });
 }
@@ -176,7 +197,7 @@ function buildPatientDashboard(container, data) {
                                     <strong>Dr. ${app.doctor_name}</strong> on ${new Date(app.date).toLocaleDateString()}<br>
                                     <small>${app.clinic_name} at ${app.time} (Your No: #${app.queue_number})</small>
                                 </div>
-                                <button class="btn btn-danger btn-small" onclick="deleteAppointment(${app.id})">Cancel</button>
+                                <button class="btn btn-danger btn-small" onclick="deleteAppointment(this, ${app.id})">Cancel</button>
                             </div>
                             <div class="live-queue-status" data-doctor-id="${app.doctor_id}" data-clinic-id="${app.clinic_id}" data-queue-number="${app.queue_number}" style="margin-top: 1rem; padding: 1rem; border-radius: 8px; background: #f1f5f9;">
                                 <p class="current-status-text" style="font-weight: bold;">Loading queue status...</p>
@@ -273,8 +294,8 @@ async function searchForDoctors() {
                             <small>${schedule.clinic_name}</small><br>
                             <small style="font-weight: bold; color: #334155;">${schedule.start_time} - ${schedule.end_time} ${slotsInfo}</small>
                         </div>
-                        <button class="btn btn-small" onclick="bookAppointment(${doctor.id}, ${schedule.clinic_id}, '${date}')" ${isFull ? 'disabled' : ''}>
-                            ${isFull ? 'Full' : 'Book'}
+                        <button class="btn btn-small" onclick="bookAppointment(this, ${doctor.id}, ${schedule.clinic_id}, '${date}')" ${isFull ? 'disabled' : ''}>
+                ${isFull ? 'Full' : 'Book'}
                         </button>
                     </div>
                 `}).join('') || '<small>No schedules found for this day.</small>'}
@@ -285,14 +306,33 @@ async function searchForDoctors() {
     }
 }
 
-async function bookAppointment(doctorId, clinicId, date) {
-    const user = JSON.parse(localStorage.getItem('user'));
-    const response = await apiRequest('appointments/book', 'POST', { patientId: user.id, doctorId, clinicId, date });
-    if (response.success) {
-        alert('Appointment booked successfully!');
-        loadDashboard('patient');
-    } else {
-        alert(`Booking Failed: ${response.message}`);
+
+async function bookAppointment(buttonElement, doctorId, clinicId, date) {
+    // ১. বাটনের পুরানো লেখা সেভ করুন এবং লোডিং স্টেট দেখান
+    const originalText = buttonElement.innerHTML;
+    buttonElement.disabled = true;
+    buttonElement.innerHTML = 'Booking... ⏳'; // আপনি চাইলে এখানে স্পিনার আইকনও দিতে পারেন
+
+    try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        const response = await apiRequest('appointments/book', 'POST', { patientId: user.id, doctorId, clinicId, date });
+
+        if (response.success) {
+            alert('Appointment booked successfully!');
+            loadDashboard('patient');
+            // সফল হলে পেজ রিলোড হয়ে যাবে, তাই বাটন ঠিক করার দরকার নেই
+        } else {
+            // ২. যদি বুকিং ফেল হয়, বাটনটিকে আবার আগের অবস্থায় ফিরিয়ে আনুন
+            alert(`Booking Failed: ${response.message}`);
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = originalText;
+        }
+    } catch (error) {
+        // ৩. যদি কোনো নেটওয়ার্ক এরর হয়, তাহলেও বাটন ঠিক করুন
+        console.error("Booking Error:", error);
+        alert('An unexpected error occurred. Please try again.');
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalText;
     }
 }
 
@@ -1121,16 +1161,34 @@ function displayError(message) {
         errorElement.style.display = 'block';
     }
 }
-window.deleteAppointment = async (appointmentId) => {
+window.deleteAppointment = async (buttonElement, appointmentId) => {
     if (!confirm('Are you sure you want to cancel this appointment?')) {
         return;
     }
-    const response = await apiRequest(`appointments/${appointmentId}`, 'DELETE');
-    if (response.success) {
-        alert('Appointment cancelled successfully.');
-        loadDashboard('patient');
-    } else {
-        alert('Error: ' + response.message);
+
+    // লোডিং শুরু
+    const originalText = buttonElement.innerHTML;
+    buttonElement.disabled = true;
+    buttonElement.innerHTML = 'Cancelling... ⏳';
+
+    try {
+        const response = await apiRequest(`appointments/${appointmentId}`, 'DELETE');
+        
+        if (response.success) {
+            alert('Appointment cancelled successfully.');
+            loadDashboard('patient');
+            // সফল হলে পেজ রিলোড হবে, তাই বাটন রিসেট করার দরকার নেই
+        } else {
+            // ফেল করলে বাটন আগের অবস্থায় ফিরিয়ে আনুন
+            alert('Error: ' + response.message);
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = originalText;
+        }
+    } catch (error) {
+        // কোনো নেটওয়ার্ক এরর হলেও বাটন আগের অবস্থায় ফিরিয়ে আনুন
+        alert('An error occurred: ' + error.message);
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalText;
     }
 };
 
