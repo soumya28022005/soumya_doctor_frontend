@@ -819,3 +819,25 @@ input[type="checkbox"]:hover {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+/* Google Sign-Up বাটনের স্টাইল */
+
+.divider-text {
+    text-align: center;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    color: #777;
+}
+
+.google-btn-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+/* Google বাটনটিকে ফর্মের মতো চওড়া করার জন্য (ঐচ্ছিক) */
+.google-btn-container > div {
+    width: 100%;
+}
+.google-btn-container iframe {
+    width: 100% !important;
+}

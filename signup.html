@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - Clinic System</title>
     <link rel="stylesheet" href="css/style.css">
+    
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
      <header class="header">
@@ -15,6 +17,7 @@
         <div class="form-container">
             <h1>Sign Up as <span>Patient</span></h1>
             <p id="error-message" class="error-message" style="display: none;"></p>
+            
             <form id="signup-form">
                 <div class="form-group">
                     <label for="name">Full Name</label>
@@ -38,6 +41,27 @@
                 </div>
                 <button type="submit" class="btn">Create Account</button>
             </form>
+
+            <div class="divider-text">
+                Or
+            </div>
+
+            <div id="g_id_onload"
+                 data-client_id="938157690311-mhik3a6mcv4qck5uahcn49l1fvon67j6.apps.googleusercontent.com"
+                 data-callback="onGoogleSignIn"
+                 data-auto_prompt="false">
+            </div>
+            
+            <div class="google-btn-container">
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-size="large"
+                     data-theme="outline"
+                     data-text="sign_up_with"
+                     data-shape="rectangular"
+                     data-logo_alignment="left">
+                </div>
+            </div>
             <p class="form-link">Already have an account? <a href="login.html?role=patient">Login</a></p>
         </div>
     </div>

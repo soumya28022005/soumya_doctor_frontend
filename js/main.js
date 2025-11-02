@@ -42,6 +42,9 @@ function logout() {
 }
 
 function setupLoginPage() {
+    // ১. HTML থেকে onGoogleSignIn ফাংশনটিকে কল করার জন্য এটি যোগ করুন
+    window.onGoogleSignIn = onGoogleSignIn;
+
     const role = new URLSearchParams(window.location.search).get('role');
     if (localStorage.getItem('user') && localStorage.getItem('role') === role) {
         window.location.href = `${role}-dashboard.html`;
@@ -54,24 +57,54 @@ function setupLoginPage() {
     }
 
     document.getElementById('login-title').innerHTML = `Login as <span style="text-transform: capitalize;">${role}</span>`;
+    
+    // ২. Google বাটন ও Sign Up লিঙ্ক শুধু patient-দের জন্য দেখান
     if (role === 'patient') {
         document.getElementById('signup-link-container').style.display = 'block';
+    } else {
+        // যদি patient না হয় (doctor, admin, etc.), Google বাটন হাইড করুন
+        const googleButton = document.querySelector('.g_id_signin');
+        if (googleButton) googleButton.style.display = 'none';
+        const googleLoader = document.getElementById('g_id_onload');
+        if (googleLoader) googleLoader.style.display = 'none';
+        // "Or" লেখাটাও হাইড করুন
+        const orText = Array.from(document.querySelectorAll('div, p')).find(el => el.textContent === 'Or' && el.style.textAlign === 'center');
+        if (orText) orText.style.display = 'none';
     }
 
-    document.getElementById('login-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const { username, password } = event.target.elements;
-        const response = await apiRequest(`login/${role}`, 'POST', { username: username.value, password: password.value });
+    // ৩. Login form-এ লোডিং স্পিনার যোগ করুন
+    const loginForm = document.getElementById('login-form');
+    const submitButton = loginForm.querySelector('button[type="submit"]');
 
-        if (response.success) {
-            localStorage.setItem('user', JSON.stringify(response.user));
-            localStorage.setItem('role', role);
-            window.location.href = `${role}-dashboard.html`;
-        } else {
-            displayError(response.message);
+    loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        
+        const originalText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Logging in... ⏳';
+
+        try {
+            const { username, password } = event.target.elements;
+            const response = await apiRequest(`login/${role}`, 'POST', { username: username.value, password: password.value });
+
+            if (response.success) {
+                localStorage.setItem('user', JSON.stringify(response.user));
+                localStorage.setItem('role', role);
+                window.location.href = `${role}-dashboard.html`;
+            } else {
+                displayError(response.message);
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        } catch (error) {
+            displayError('An error occurred. Please try again.');
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
         }
     });
 }
+
+
 function toggleClinicForm() {
     const option = document.querySelector('input[name="addClinicOption"]:checked').value;
     document.getElementById('privateClinicForm').style.display = (option === 'private') ? 'block' : 'none';
@@ -96,6 +129,7 @@ async function searchClinics() {
 }
 
 function setupSignupPage() {
+    window.onGoogleSignIn = onGoogleSignIn;
     const signupForm = document.getElementById('signup-form');
     // ফর্মের ভেতরের সাবমিট বাটনটি ধরুন
     const submitButton = signupForm.querySelector('button[type="submit"]');
@@ -1192,3 +1226,25 @@ window.deleteAppointment = async (buttonElement, appointmentId) => {
     }
 };
 
+// Google Sign-In হ্যান্ডলার
+async function onGoogleSignIn(googleResponse) {
+    const id_token = googleResponse.credential;
+    document.getElementById('error-message').style.display = 'none';
+    const googleButton = document.querySelector('.g_id_signin');
+    if (googleButton) googleButton.style.display = 'none'; // বাটন হাইড করুন
+
+    try {
+        const response = await apiRequest('auth/google', 'POST', { token: id_token });
+        if (response.success) {
+            localStorage.setItem('user', JSON.stringify(response.user));
+            localStorage.setItem('role', 'patient'); // Google login শুধু patient-দের জন্য
+            window.location.href = `patient-dashboard.html`;
+        } else {
+            displayError(response.message || 'Google Sign-In Failed');
+            if (googleButton) googleButton.style.display = 'block'; // এরর হলে বাটন ফেরত আনুন
+        }
+    } catch (error) {
+        displayError('An error occurred during Google Sign-In.');
+        if (googleButton) googleButton.style.display = 'block';
+    }
+}

@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Clinic System</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css"> 
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     <header class="header">
@@ -14,6 +15,7 @@
         <div class="form-container">
             <h1 id="login-title">Login</h1>
             <p id="error-message" class="error-message" style="display: none;"></p>
+            
             <form id="login-form">
                 <div class="form-group">
                     <label for="username">Username</label>
@@ -25,6 +27,25 @@
                 </div>
                 <button type="submit" class="btn">Login</button>
             </form>
+
+            <div style="text-align: center; margin-top: 1.5rem; margin-bottom: 1rem; color: #777;">
+                Or
+            </div>
+
+            <div id="g_id_onload"
+                 data-client_id="938157690311-mhik3a6mcv4qck5uahcn49l1fvon67j6.apps.googleusercontent.com"
+                 data-callback="onGoogleSignIn"
+                 data-auto_prompt="false">
+            </div>
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-size="large"
+                 data-theme="outline"
+                 data-text="sign_in_with"
+                 data-shape="rectangular"
+                 data-logo_alignment="left"
+                 style="width: 100%; display: flex; justify-content: center;">
+            </div>
             <p id="signup-link-container" class="form-link" style="display: none;">
                 Don't have an account? <a href="signup.html">Sign Up</a>
             </p>
