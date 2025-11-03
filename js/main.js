@@ -64,7 +64,7 @@ function setupLoginPage() {
     if (role === 'patient') {
         document.getElementById('signup-link-container').style.display = 'block';
     } else {
-        // যদি patient না হয় (doctor, admin, etc.), Google বাটন হাইড করুন
+        // যদি patient না হয় (doctor, admin, etc.), Google বাটন হাইড করুন
         const googleButton = document.querySelector('.g_id_signin');
         if (googleButton) googleButton.style.display = 'none';
         const googleLoader = document.getElementById('g_id_onload');
@@ -84,6 +84,10 @@ function setupLoginPage() {
         const originalText = submitButton.innerHTML;
         submitButton.disabled = true;
         submitButton.innerHTML = 'Logging in... ⏳';
+        
+        // Error o Success message clear korun
+        displayError('');
+        displaySuccess('');
 
         try {
             const { username, password } = event.target.elements;
@@ -107,12 +111,17 @@ function setupLoginPage() {
                     window.location.href = `${role}-dashboard.html`;
                 }, 1000); // 1 second delay
             } else {
-                displayError(response.message);
+                // *** EITA HOLO LOGIN ERROR (Jemon: Bhul Password) ***
+                // Server connect hoyeche, kintu login korte parlo na
+                displayError(response.message); // Server-er dewa message dekhabe
                 submitButton.disabled = false;
                 submitButton.innerHTML = originalText;
             }
         } catch (error) {
-            displayError('An error occurred. Please try again.');
+            // *** EITA HOLO SERVER ERROR (Jemon: Server bondho) ***
+            // Server-ei connect korte pareni
+            displaySuccess(''); // Shobuj message hide korun
+            displayError('Server not connected. Please try again.'); // Notun error message
             submitButton.disabled = false;
             submitButton.innerHTML = originalText;
         }
