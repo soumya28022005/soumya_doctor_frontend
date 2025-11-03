@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'https://soumya-doctor-3.onrender.com'; 
+const API_BASE_URL = 'http://localhost:3000'; 
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
@@ -121,20 +121,22 @@ function setupLoginPage() {
 function showForgotPasswordForm(role) {
     const formContainer = document.getElementById('form-container-main');
     formContainer.innerHTML = `
-        <h1 id="login-title">Forgot Password</h1>
-        <p>Apnar ${role}-er registered username (email) din. Amra apnake ekti OTP pathabo.</p>
-        <p id="error-message" class="error-message" style="display: none;"></p>
-        
-        <form id="forgot-form">
-            <div class="form-group">
-                <label for="username">Username (Email)</label>
-                <input type="email" id="username" name="username" required>
-            </div>
-            <button type="submit" class="btn btn-full">Send OTP</button>
-        </form>
-        <p class="form-link">
-            Mone poreche? <a href="login.html?role=${role}">Login</a>
-        </p>
+       <h1 id="login-title">Forgot Password</h1>
+<p>Please enter your registered ${role} username (email). We will send you an OTP.</p>
+<p id="error-message" class="error-message" style="display: none;"></p>
+
+<form id="forgot-form">
+    <div class="form-group">
+        <label for="username">Username (Email)</label>
+        <input type="email" id="username" name="username" required>
+    </div>
+    <button type="submit" class="btn btn-full">Send OTP</button>
+</form>
+
+<p class="form-link">
+    Remembered? <a href="login.html?role=${role}">Login</a>
+</p>
+
     `;
 
     document.getElementById('forgot-form').addEventListener('submit', async (e) => {
@@ -170,28 +172,30 @@ function showForgotPasswordForm(role) {
 function showResetPasswordForm(username, role) {
     const formContainer = document.getElementById('form-container-main');
     formContainer.innerHTML = `
-        <h1 id="login-title">Reset Password</h1>
-        <p>Ekti 6-digit OTP apnar email <strong>${username}</strong>-e pathano hoyeche.</p>
-        <p id="error-message" class="error-message" style="display: none;"></p>
-        
-        <form id="reset-form">
-            <div class="form-group">
-                <label for="otp">Enter OTP</label>
-                <input type="text" id="otp" name="otp" required maxlength="6">
-            </div>
-            <div class="form-group">
-                <label for="newPassword">New Password</label>
-                <input type="password" id="newPassword" name="newPassword" required>
-            </div>
-             <div class="form-group">
-                <label for="confirmPassword">Confirm New Password</label>
-                <input type="password" id="confirmPassword" name="confirmPassword" required>
-            </div>
-            <button type="submit" class="btn btn-full">Reset Password</button>
-        </form>
-        <p class="form-link">
-            Abar cheshta korun? <a href="#" onclick="showForgotPasswordForm('${role}'); return false;">Resend OTP</a>
-        </p>
+      <h1 id="login-title">Reset Password</h1>
+<p>A 6-digit OTP has been sent to your email <strong>${username}</strong>.</p>
+<p id="error-message" class="error-message" style="display: none;"></p>
+
+<form id="reset-form">
+    <div class="form-group">
+        <label for="otp">Enter OTP</label>
+        <input type="text" id="otp" name="otp" required maxlength="6">
+    </div>
+    <div class="form-group">
+        <label for="newPassword">New Password</label>
+        <input type="password" id="newPassword" name="newPassword" required>
+    </div>
+    <div class="form-group">
+        <label for="confirmPassword">Confirm New Password</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" required>
+    </div>
+    <button type="submit" class="btn btn-full">Reset Password</button>
+</form>
+
+<p class="form-link">
+    Try again? <a href="#" onclick="showForgotPasswordForm('${role}'); return false;">Resend OTP</a>
+</p>
+
     `;
 
     document.getElementById('reset-form').addEventListener('submit', async (e) => {
@@ -290,46 +294,119 @@ async function searchClinics() {
 
 function setupSignupPage() {
     window.onGoogleSignIn = onGoogleSignIn;
+    
     const signupForm = document.getElementById('signup-form');
-    // ফর্মের ভেতরের সাবমিট বাটনটি ধরুন
-    const submitButton = signupForm.querySelector('button[type="submit"]');
+    const getOtpBtn = document.getElementById('get-otp-btn');
+    const createAccountBtn = document.getElementById('create-account-btn');
+    const otpGroup = document.getElementById('otp-group');
+    const allInputs = signupForm.querySelectorAll('input:not([type="text"][id="otp"])'); // OTP chara baki input
 
+    // Notun success message function
+    const displayPageSuccess = (message) => {
+        const successElement = document.getElementById('success-message');
+        if (successElement) {
+            successElement.textContent = message;
+            successElement.style.display = message ? 'block' : 'none';
+        }
+    };
+    
+    // Page load hole shob message clear korun
+    displayError('');
+    displayPageSuccess('');
+
+    // "Get OTP" button-er listener
+    getOtpBtn.addEventListener('click', async () => {
+        const username = document.getElementById('username').value;
+        const mobile = document.getElementById('mobile').value;
+
+        if (!username || !mobile) {
+            displayError('Please fill in your Email and Mobile Number first.');
+            return;
+        }
+
+        const originalText = getOtpBtn.innerHTML;
+        getOtpBtn.disabled = true;
+        getOtpBtn.innerHTML = 'Sending OTP... ⏳';
+        displayError('');
+        displayPageSuccess('');
+
+        try {
+            const response = await apiRequest('signup/request-otp', 'POST', { username, mobile });
+
+            if (response.success) {
+                displayPageSuccess('OTP sent successfully to your email! Please check.');
+                otpGroup.style.display = 'block'; 
+                createAccountBtn.disabled = false; 
+                getOtpBtn.innerHTML = 'Resend OTP'; 
+                getOtpBtn.disabled = false; 
+                
+                // Onnanno field disable korun
+                allInputs.forEach(input => input.disabled = true);
+
+            } else {
+                displayError(response.message);
+                getOtpBtn.disabled = false;
+                getOtpBtn.innerHTML = originalText;
+            }
+        } catch (error) {
+            displayError('An unexpected error occurred.');
+            getOtpBtn.disabled = false;
+            getOtpBtn.innerHTML = originalText;
+        }
+    });
+
+    // "Create Account" button-er listener
     signupForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         
-        // লোডিং শুরু
-        const originalText = submitButton.innerHTML;
-        submitButton.disabled = true;
-        submitButton.innerHTML = 'Signing up... ⏳';
+        const originalBtnText = createAccountBtn.innerHTML;
+        createAccountBtn.disabled = true;
+        createAccountBtn.innerHTML = 'Creating Account... ⏳';
+        displayError('');
+        displayPageSuccess('');
 
         try {
-            const { name, dob, mobile, username, password } = event.target.elements;
-            const response = await apiRequest('signup/patient', 'POST', {
-                name: name.value,
-                dob: dob.value,
-                mobile: mobile.value,
-                username: username.value,
-                password: password.value
-            });
+            // Shob field-er data notun kore collect korun
+            const formData = new FormData(signupForm);
+            const data = Object.fromEntries(formData.entries());
+            
+            allInputs.forEach(input => input.disabled = false); // Temporarily enable to get values
+            data.name = document.getElementById('name').value;
+            data.dob = document.getElementById('dob').value;
+            data.mobile = document.getElementById('mobile').value;
+            data.username = document.getElementById('username').value;
+            data.password = document.getElementById('password').value;
+            allInputs.forEach(input => input.disabled = true); // Disable again
+
+            const response = await apiRequest('signup/patient', 'POST', data);
 
             if (response.success) {
                 alert('Signup successful! Please login.');
                 window.location.href = 'login.html?role=patient';
-                // সফল হলে পেজ চেঞ্জ হবে, তাই বাটন রিসেট দরকার নেই
             } else {
                 displayError(response.message);
-                // ফেল করলে বাটন রিসেট
-                submitButton.disabled = false;
-                submitButton.innerHTML = originalText;
+                createAccountBtn.disabled = false;
+                createAccountBtn.innerHTML = originalBtnText;
+                allInputs.forEach(input => input.disabled = false); // Error hole field abar enable korun
             }
         } catch (error) {
-            // এরর হলেও বাটন রিসেট
             displayError('An unexpected error occurred. Please try again.');
-            submitButton.disabled = false;
-            submitButton.innerHTML = originalText;
+            createAccountBtn.disabled = false;
+            createAccountBtn.innerHTML = originalBtnText;
+            allInputs.forEach(input => input.disabled = false);
         }
     });
 }
+
+    // --- NOTUN ONGSHO ---
+    // 4. Forgot Password Link-er jonno Event Listener
+    const forgotLink = document.getElementById('forgot-password-link');
+    forgotLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const role = new URLSearchParams(window.location.search).get('role');
+        showForgotPasswordForm(role); // Notun function-ke call kora
+    });
+
 
 // --- Dashboard ---
 // [SUDHU EI FUNCTION-TI REPLACE KORUN]
@@ -1369,9 +1446,26 @@ function displayError(message) {
     const errorElement = document.getElementById('error-message');
     if (errorElement) {
         errorElement.textContent = message;
-        errorElement.style.display = 'block';
+        if (message) { // Jodi message-e kichu thake, tahole box-ti dekhabe
+            errorElement.style.display = 'block';
+        } else { // Jodi message khali hoy, tahole box-ti lukiye felbe
+            errorElement.style.display = 'none';
+        }
     }
 }
+
+function displaySuccess(message) {
+    const successElement = document.getElementById('success-message');
+    if (successElement) {
+        successElement.textContent = message;
+        if (message) {
+            successElement.style.display = 'block';
+        } else {
+            successElement.style.display = 'none';
+        }
+    }
+}
+
 window.deleteAppointment = async (buttonElement, appointmentId) => {
     if (!confirm('Are you sure you want to cancel this appointment?')) {
         return;

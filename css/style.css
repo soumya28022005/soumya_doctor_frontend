@@ -841,3 +841,13 @@ input[type="checkbox"]:hover {
 .google-btn-container iframe {
     width: 100% !important;
 }
+.success-message {
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    color: var(--success-color);
+    padding: 1.25rem;
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--success-color);
+    font-weight: 500;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
