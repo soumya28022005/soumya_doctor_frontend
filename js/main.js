@@ -68,8 +68,8 @@ function setupLoginPage() {
         const googleLoader = document.getElementById('g_id_onload');
         if (googleLoader) googleLoader.style.display = 'none';
         // "Or" লেখাটাও হাইড করুন
-        const orText = Array.from(document.querySelectorAll('div, p')).find(el => el.textContent === 'Or' && el.style.textAlign === 'center');
-        if (orText) orText.style.display = 'none';
+       const or = document.getElementById('or');
+       if(or) or.style.display='none';
     }
 
     // ৩. Login form-এ লোডিং স্পিনার যোগ করুন
