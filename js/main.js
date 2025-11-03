@@ -41,6 +41,8 @@ function logout() {
     window.location.href = 'index.html';
 }
 
+// ... handlePageLoad function-er pore ...
+
 function setupLoginPage() {
     // ১. HTML থেকে onGoogleSignIn ফাংশনটিকে কল করার জন্য এটি যোগ করুন
     window.onGoogleSignIn = onGoogleSignIn;
@@ -103,7 +105,164 @@ function setupLoginPage() {
             submitButton.innerHTML = originalText;
         }
     });
+
+    // --- NOTUN ONGSHO ---
+    // 4. Forgot Password Link-er jonno Event Listener
+    const forgotLink = document.getElementById('forgot-password-link');
+    forgotLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const role = new URLSearchParams(window.location.search).get('role');
+        showForgotPasswordForm(role); // Notun function-ke call kora
+    });
 }
+
+// ... setupSignupPage function-er pore ei code add korun ...
+
+function showForgotPasswordForm(role) {
+    const formContainer = document.getElementById('form-container-main');
+    formContainer.innerHTML = `
+        <h1 id="login-title">Forgot Password</h1>
+        <p>Apnar ${role}-er registered username (email) din. Amra apnake ekti OTP pathabo.</p>
+        <p id="error-message" class="error-message" style="display: none;"></p>
+        
+        <form id="forgot-form">
+            <div class="form-group">
+                <label for="username">Username (Email)</label>
+                <input type="email" id="username" name="username" required>
+            </div>
+            <button type="submit" class="btn btn-full">Send OTP</button>
+        </form>
+        <p class="form-link">
+            Mone poreche? <a href="login.html?role=${role}">Login</a>
+        </p>
+    `;
+
+    document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitButton = e.target.querySelector('button[type="submit"]');
+        const username = e.target.elements.username.value;
+
+        // Button loading state
+        const originalText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Sending OTP... ⏳';
+        displayError(''); // Purono error clear korun
+
+        try {
+            const response = await apiRequest('forgot-password', 'POST', { username, role });
+
+            if (response.success) {
+                // OTP pathano hole, notun form dekhabe
+                showResetPasswordForm(username, role);
+            } else {
+                displayError(response.message);
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        } catch (error) {
+            displayError('An error occurred. Please try again.');
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
+        }
+    });
+}
+
+function showResetPasswordForm(username, role) {
+    const formContainer = document.getElementById('form-container-main');
+    formContainer.innerHTML = `
+        <h1 id="login-title">Reset Password</h1>
+        <p>Ekti 6-digit OTP apnar email <strong>${username}</strong>-e pathano hoyeche.</p>
+        <p id="error-message" class="error-message" style="display: none;"></p>
+        
+        <form id="reset-form">
+            <div class="form-group">
+                <label for="otp">Enter OTP</label>
+                <input type="text" id="otp" name="otp" required maxlength="6">
+            </div>
+            <div class="form-group">
+                <label for="newPassword">New Password</label>
+                <input type="password" id="newPassword" name="newPassword" required>
+            </div>
+             <div class="form-group">
+                <label for="confirmPassword">Confirm New Password</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" required>
+            </div>
+            <button type="submit" class="btn btn-full">Reset Password</button>
+        </form>
+        <p class="form-link">
+            Abar cheshta korun? <a href="#" onclick="showForgotPasswordForm('${role}'); return false;">Resend OTP</a>
+        </p>
+    `;
+
+    document.getElementById('reset-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitButton = e.target.querySelector('button[type="submit"]');
+        const otp = e.target.elements.otp.value;
+        const newPassword = e.target.elements.newPassword.value;
+        const confirmPassword = e.target.elements.confirmPassword.value;
+
+        if (newPassword !== confirmPassword) {
+            displayError('Passwords do not match.');
+            return;
+        }
+
+        // Button loading state
+        const originalText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Resetting... ⏳';
+        displayError(''); // Purono error clear korun
+
+        try {
+            const response = await apiRequest('reset-password', 'POST', { username, otp, newPassword });
+
+            if (response.success) {
+                alert(response.message);
+                window.location.href = `login.html?role=${role}`;
+            } else {
+                displayError(response.message);
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        } catch (error) {
+            displayError('An error occurred. Please try again.');
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
+        }
+    });
+}
+
+    // ৩. Login form-এ লোডিং স্পিনার যোগ করুন
+    const loginForm = document.getElementById('login-form');
+    const submitButton = loginForm.querySelector('button[type="submit"]');
+
+    loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        
+        const originalText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Logging in... ⏳';
+
+        try {
+            const { username, password } = event.target.elements;
+            const response = await apiRequest(`login/${role}`, 'POST', { username: username.value, password: password.value });
+                
+            if (response.success) {
+                localStorage.setItem('user', JSON.stringify(response.user));
+                localStorage.setItem('role', role);
+                localStorage.setItem('token', response.token); // <-- Notun token save korun
+                window.location.href = `${role}-dashboard.html`;
+            } else {
+                displayError(response.message);
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        } catch (error) {
+            displayError('An error occurred. Please try again.');
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
+        }
+    });
+
 
 
 function toggleClinicForm() {
