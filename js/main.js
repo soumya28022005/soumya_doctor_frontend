@@ -90,10 +90,22 @@ function setupLoginPage() {
             const response = await apiRequest(`login/${role}`, 'POST', { username: username.value, password: password.value });
                 
             if (response.success) {
+                // ১. সফল বার্তা দেখান
+                displayError(''); // পুরানো error মুছে ফেলুন
+                displaySuccess('Login Successful! Redirecting...');
+                
+                // ২. বাটন টেক্সট পরিবর্তন করুন
+                submitButton.innerHTML = 'Success! ✔️';
+                
+                // ৩. localStorage-এ ডেটা সেভ করুন
                 localStorage.setItem('user', JSON.stringify(response.user));
                 localStorage.setItem('role', role);
-                localStorage.setItem('token', response.token); // <-- Notun token save korun
-                window.location.href = `${role}-dashboard.html`;
+                localStorage.setItem('token', response.token); 
+                
+                // ৪. ১ সেকেন্ড পরে ড্যাশবোর্ডে পাঠান
+                setTimeout(() => {
+                    window.location.href = `${role}-dashboard.html`;
+                }, 1000); // 1 second delay
             } else {
                 displayError(response.message);
                 submitButton.disabled = false;
