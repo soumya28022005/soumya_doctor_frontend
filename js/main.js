@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     handlePageLoad(pageName);
 });
 
-// Navigate to the correct page setup
+// Navigate  to the correct page setup
 function handlePageLoad(page) {
     switch (page) {
         case 'login.html':
